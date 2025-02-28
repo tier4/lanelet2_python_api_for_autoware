@@ -13,6 +13,62 @@ class LocalProjector(lanelet2.Projector):
         # C++ の: return lanelet::GPSPoint{0.0, 0.0, point.z()};
         return lanelet2.GPSPoint(0.0, 0.0, point.z())
 
+def get_lanelet2_projector(projector_info):
+    """
+    プロジェクタ情報に基づいて、適切なlanelet2のプロジェクタを返します。
+    
+    引数:
+      projector_info: プロジェクタ情報を保持するオブジェクト
+      
+    戻り値:
+      lanelet2のプロジェクタオブジェクト
+      
+    例外:
+      ValueError: サポートされていないプロジェクタタイプが指定された場合
+    """
+    # LOCAL_CARTESIAN_UTM の場合
+    if projector_info.projector_type == "LOCAL_CARTESIAN_UTM":
+        position = lanelet2.GPSPoint(
+            projector_info.map_origin.latitude,
+            projector_info.map_origin.longitude,
+            projector_info.map_origin.altitude
+        )
+        origin = lanelet2.Origin(position)
+        return lanelet2.projection.UtmProjector(origin)
+    
+    # MGRS の場合
+    elif projector_info.projector_type == "MGRS":
+        projector = lanelet2.projection.MGRSProjector()
+        projector.setMGRSCode(projector_info.mgrs_grid)
+        return projector
+    
+    # TRANSVERSE_MERCATOR の場合
+    elif projector_info.projector_type == "TRANSVERSE_MERCATOR":
+        position = lanelet2.GPSPoint(
+            projector_info.map_origin.latitude,
+            projector_info.map_origin.longitude,
+            projector_info.map_origin.altitude
+        )
+        origin = lanelet2.Origin(position)
+        return lanelet2.projection.TransverseMercatorProjector(origin)
+    
+    # LOCAL_CARTESIAN の場合
+    elif projector_info.projector_type == "LOCAL_CARTESIAN":
+        position = lanelet2.GPSPoint(
+            projector_info.map_origin.latitude,
+            projector_info.map_origin.longitude,
+            projector_info.map_origin.altitude
+        )
+        origin = lanelet2.Origin(position)
+        return lanelet2.projection.LocalCartesianProjector(origin)
+    
+    # サポートされていないプロジェクタタイプの場合
+    else:
+        raise ValueError(
+            f"Invalid map projector type: {projector_info.projector_type}. "
+            "Currently supported types: MGRS, LOCAL_CARTESIAN_UTM, LOCAL_CARTESIAN and TRANSVERSE_MERCATOR"
+        )
+
 def load_map(lanelet2_filename, projector_info):
     """
     指定されたファイル名とプロジェクタ情報に基づいて、Lanelet2形式の地図を読み込みます。
@@ -29,7 +85,7 @@ def load_map(lanelet2_filename, projector_info):
 
     # グローバル系の場合（"local" 以外）
     if projector_info.projector_type != "local":
-        projector = get_lanelet2_projector(projector_info) # TODO: get_lanelet2_projector の実装
+        projector = get_lanelet2_projector(projector_info)
         map_obj = lanelet2.io.load(lanelet2_filename, projector, errors)
         if not errors:
             return map_obj
