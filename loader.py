@@ -1,5 +1,18 @@
 import lanelet2
 
+class LocalProjector(lanelet2.Projector):
+    def __init__(self):
+        # C++ の: LocalProjector() : Projector(lanelet::Origin(lanelet::GPSPoint{})) {}
+        super().__init__(lanelet2.Origin(lanelet2.GPSPoint()))
+    
+    def forward(self, gps):
+        # C++ の: return lanelet::BasicPoint3d{0.0, 0.0, gps.ele};
+        return lanelet2.BasicPoint3d(0.0, 0.0, gps.ele)
+    
+    def reverse(self, point):
+        # C++ の: return lanelet::GPSPoint{0.0, 0.0, point.z()};
+        return lanelet2.GPSPoint(0.0, 0.0, point.z())
+
 def load_map(lanelet2_filename, projector_info):
     """
     指定されたファイル名とプロジェクタ情報に基づいて、Lanelet2形式の地図を読み込みます。
@@ -22,7 +35,7 @@ def load_map(lanelet2_filename, projector_info):
             return map_obj
     else:
         # ローカルプロジェクタを使用
-        projector = LocalProjector() # TODO: LocalProjector の実装
+        projector = LocalProjector()
         map_obj = lanelet2.io.load(lanelet2_filename, projector, errors)
 
         if errors:
