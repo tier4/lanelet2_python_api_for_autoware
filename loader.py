@@ -2,7 +2,7 @@ from autoware_lanelet2_extension_python.projection import MGRSProjector
 from autoware_lanelet2_extension_python.projection import TransverseMercatorProjector
 import lanelet2
 
-class LocalProjector(lanelet2.Projector):
+class LocalProjector(lanelet2.projection.Projector):
     def __init__(self):
         # C++ の: LocalProjector() : Projector(lanelet::Origin(lanelet::GPSPoint{})) {}
         super().__init__(lanelet2.io.Origin(lanelet2.GPSPoint()))
@@ -88,13 +88,12 @@ def load_map(lanelet2_filename, projector_info):
     # グローバル系の場合（"local" 以外）
     if projector_info.projector_type != "local":
         projector = get_lanelet2_projector(projector_info)
-        map_obj = lanelet2.io.load(lanelet2_filename, projector, errors)
-        if not errors:
-            return map_obj
+        map_obj = lanelet2.io.load(lanelet2_filename, projector)
+        return map_obj
     else:
         # ローカルプロジェクタを使用
         projector = LocalProjector()
-        map_obj = lanelet2.io.load(lanelet2_filename, projector, errors)
+        map_obj = lanelet2.io.load(lanelet2_filename, projector)
 
         if errors:
             for error in errors:

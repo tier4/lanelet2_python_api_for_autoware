@@ -1,1 +1,0 @@
-# lanelet2_python_api_for_autoware

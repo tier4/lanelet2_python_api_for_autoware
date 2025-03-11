@@ -25,6 +25,7 @@ I have already tested that I can launch lanelet2 (and the sub-packages) package 
 ###
 Thanks https://github.com/embedded-software-laboratory/Rosless-Lanelet2 for there developments.
 
-## API Changes (under Test)
+## API Changes
 
-For now I am using Eigen vecstors instead of Geometric poses. I have not tested if they are correct.
+- Utilize numpy.array instead of geometry pose messages.
+- Improve python function documentation. 
