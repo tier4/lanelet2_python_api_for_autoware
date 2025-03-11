@@ -1,0 +1,6 @@
+.vscode
+build
+install
+.temp.git
+__pycache__
+.ipynb_checkpoints
