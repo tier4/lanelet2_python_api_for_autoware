@@ -4,3 +4,4 @@ install
 .temp.git
 __pycache__
 .ipynb_checkpoints
+tutorial_docs/example_cache.json
