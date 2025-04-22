@@ -12,8 +12,3 @@ export CPATH=$INSTALL_DIR/install/include:$CPATH
 
 # Add binary path to PATH
 export PATH=$INSTALL_DIR/install/lib:$PATH
-
-echo "Environment setup complete:"
-echo "PYTHONPATH = $PYTHONPATH"
-echo "LD_LIBRARY_PATH = $LD_LIBRARY_PATH"
-echo "PATH = $PATH"
