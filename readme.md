@@ -1,31 +1,57 @@
 # Standable Autoware Lanelet2 Extension
 
+This repository provides a standalone implementation of the Lanelet2 library and Autoware's Lanelet2 extension, allowing for map processing and route planning without ROS dependencies.
 
 ## Setup
-This repository will build and install (first in the local directory) the Lanelet2 library and the autoware_lanelet2_extension.
 
-```
-## Common packages only not available in bare ubuntu container
+This repository will build and install the Lanelet2 library and the autoware_lanelet2_extension (first in the local directory).
+
+```bash
+# Install common packages (required for bare Ubuntu container)
 sudo apt install git gcc cmake python3 python3-pip
 
-## install addtional necessary packages
+# Install additional necessary packages
 bash pre-install.sh 
 
-## build the repositories and it will create an `install` folder locally
+# Build the repositories (creates an 'install' folder locally)
 bash build.sh
 
-## add environmental variables in the current terminal
+# Add environmental variables to the current terminal
 source setup.bash
 ```
 
-Then we can use `lanelet2` and `autoware_lanelet2_extension_python` as if normal python packages everywhere.
+After installation, `lanelet2` and `autoware_lanelet2_extension_python` can be used as standard Python packages anywhere in your environment.
 
-I have already tested that I can launch lanelet2 (and the sub-packages) package normally, (with the installation pipeline reproduced in ubuntu 22.04 container).
+> Note: This installation has been tested and verified on Ubuntu 22.04 containers.
 
-###
-Thanks https://github.com/embedded-software-laboratory/Rosless-Lanelet2 for there developments.
+## Tutorials
+
+This repository includes three Jupyter notebooks that serve as tutorials:
+
+### [Basic Operation](./basic_lanelet2_extraction.ipynb)
+- Setting up environments
+- Loading maps
+- Getting local map
+- Visualizing lanelets
+- Computing routes and connecting lanelets
+
+### [Regulation Elements](./RegulationElements.ipynb)
+- Extracting traffic light information
+- Extracting road types and polygons
+
+### [JSON Schema](./interaction_with_cache_json.ipynb)
+- Indexing into keyframes
+- Visualizing current keyframe
+  - Visualizing routes
+  - Visualizing history and future
+  - Visualizing traffic lights
+- Visualizing in local coordinate system
 
 ## API Changes
 
-- Utilize numpy.array instead of geometry pose messages.
-- Improve python function documentation. 
+- Replaced geometry pose messages with NumPy arrays
+- Improved Python function documentation
+
+## Acknowledgments
+
+Thanks to [Rosless-Lanelet2](https://github.com/embedded-software-laboratory/Rosless-Lanelet2) for their development work that contributed to this project.
