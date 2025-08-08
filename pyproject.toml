@@ -1,0 +1,28 @@
+[project]
+name = "lanelet2-python-api"
+version = "0.1.0"
+description = "Standalone Autoware Lanelet2 Extension Python API"
+readme = "readme.md"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=2.0.2",
+]
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["lanelet2_python_api"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"*" = ["install/**/*"]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.0",
+]
+
+[project.scripts]
+lanelet2-build = "lanelet2_python_api.build:main"
