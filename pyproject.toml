@@ -13,26 +13,10 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = [
-    "lanelet2_python_api",
-    "lanelet2",
-    "autoware_lanelet2_extension_python",
-    "autoware_lanelet2_extension_python.impl",
-    "autoware_lanelet2_extension_python.projection", 
-    "autoware_lanelet2_extension_python.regulatory_elements",
-    "autoware_lanelet2_extension_python.utility"
-]
-package-dir = {"lanelet2" = "install/lib/python3/dist-packages/lanelet2", "autoware_lanelet2_extension_python" = "install/lib/python3/dist-packages/autoware_lanelet2_extension_python"}
+# Let setup.py handle dynamic package discovery
 include-package-data = true
 
 [tool.setuptools.package-data]
-"lanelet2_python_api" = ["*.py"]
-"lanelet2" = ["*.so", "*.py"]
-"autoware_lanelet2_extension_python" = ["*.so", "*.py"]
-"autoware_lanelet2_extension_python.impl" = ["*.py"]
-"autoware_lanelet2_extension_python.projection" = ["*.py"]
-"autoware_lanelet2_extension_python.regulatory_elements" = ["*.py"]
-"autoware_lanelet2_extension_python.utility" = ["*.py"]
 "*" = ["install/**/*"]
 
 [tool.uv]

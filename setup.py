@@ -112,20 +112,23 @@ setup(
         'develop': PostDevelopCommand,
         'install': PostInstallCommand,
     },
-    # Include Python packages from install directory
-    packages=[
-        'lanelet2_python_api',
-        'lanelet2',
-        'autoware_lanelet2_extension_python',
-        'autoware_lanelet2_extension_python.impl',
-        'autoware_lanelet2_extension_python.projection', 
-        'autoware_lanelet2_extension_python.regulatory_elements',
-        'autoware_lanelet2_extension_python.utility'
-    ],
-    package_dir={
-        'lanelet2': 'install/lib/python3/dist-packages/lanelet2',
-        'autoware_lanelet2_extension_python': 'install/lib/python3/dist-packages/autoware_lanelet2_extension_python'
-    },
+    # Include Python packages from install directory (if built)
+    packages=['lanelet2_python_api'] + (
+        [
+            'lanelet2',
+            'autoware_lanelet2_extension_python',
+            'autoware_lanelet2_extension_python.impl',
+            'autoware_lanelet2_extension_python.projection', 
+            'autoware_lanelet2_extension_python.regulatory_elements',
+            'autoware_lanelet2_extension_python.utility'
+        ] if os.path.exists('install/lib/python3/dist-packages') else []
+    ),
+    package_dir=(
+        {
+            'lanelet2': 'install/lib/python3/dist-packages/lanelet2',
+            'autoware_lanelet2_extension_python': 'install/lib/python3/dist-packages/autoware_lanelet2_extension_python'
+        } if os.path.exists('install/lib/python3/dist-packages') else {}
+    ),
     # Include shared libraries in the package
     data_files=[
         ('lib', [
@@ -141,14 +144,15 @@ setup(
         ] if os.path.exists('install/lib') else []),
     ] if os.path.exists('install/lib') else [],
     include_package_data=True,
-    package_data={
+    package_data=dict({
         'lanelet2_python_api': ['*.py'],
+        '': ['install/**/*'],
+    }, **({
         'lanelet2': ['*.so', '*.py'],
         'autoware_lanelet2_extension_python': ['*.so', '*.py'],
         'autoware_lanelet2_extension_python.impl': ['*.py'],
         'autoware_lanelet2_extension_python.projection': ['*.py'],
         'autoware_lanelet2_extension_python.regulatory_elements': ['*.py'],
         'autoware_lanelet2_extension_python.utility': ['*.py'],
-        '': ['install/**/*'],
-    },
+    } if os.path.exists('install/lib/python3/dist-packages') else {})),
 )
