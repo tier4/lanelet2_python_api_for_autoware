@@ -47,20 +47,29 @@ That's it! The system will:
 
 ### Alternative Installation Methods
 
-#### Option A: Auto-Build on Install
+#### Option A: UV Virtual Environment Management
 ```bash
-# Package installs AND builds automatically
+# Create UV virtual environment with all dependencies
+uv sync --dev
+
+# Test installation in virtual environment
+uv run python -c "import lanelet2; print('Success!')"
+```
+
+#### Option B: Auto-Build on Install  
+```bash
+# Package installs AND builds automatically (in current environment)
 uv pip install -e .
 ```
 
-#### Option B: Manual Build Control
+#### Option C: Manual Build Control
 ```bash
 # Install first, build later
 uv pip install -e . --no-build-isolation
 uv run lanelet2-build
 ```
 
-#### Option C: Legacy Method (Still Works!)
+#### Option D: Legacy Method (Still Works!)
 ```bash
 bash pre-install.sh    # System dependencies
 bash build.sh          # Build libraries
@@ -69,12 +78,29 @@ source setup.bash      # Set environment
 
 ## Usage
 
+### In UV Virtual Environment (Recommended)
+```bash
+# Run Python scripts in UV environment
+uv run python your_script.py
+
+# Or activate the environment manually
+source .venv/bin/activate
+python your_script.py
+```
+
+### Python Code Examples
 ```python
 import lanelet2
 from lanelet2 import core, io, projection, routing, traffic_rules
 
 # All modules ready to use!
 print("Available modules:", dir(lanelet2))
+
+# Autoware extensions
+from autoware_lanelet2_extension_python.projection import MGRSProjector
+from autoware_lanelet2_extension_python.regulatory_elements import AutowareTrafficLight
+
+projector = MGRSProjector()
 ```
 
 
