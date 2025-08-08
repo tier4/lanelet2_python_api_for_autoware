@@ -18,7 +18,7 @@ def build_dependencies():
 build_dependencies()
 
 setup(
-    name="lanelet2-python-api-for-autoware",
+    name="lanelet2-python-api",
     version="0.1.0", 
     description="Python bindings for Lanelet2 with Autoware extension",
     author="Masaya Kataoka",
