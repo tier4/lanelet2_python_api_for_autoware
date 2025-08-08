@@ -72,9 +72,28 @@ def main():
         print("Failed to build Rosless-Lanelet2")
         return 1
     
-    # Build Autoware extension (skip for now due to validation dependency)
-    print("\n=== Skipping Autoware Lanelet2 Extension (validation dependency issue) ===")
-    print("Core Lanelet2 libraries are available")
+    # Build Autoware extension  
+    print("\n=== Building Autoware Lanelet2 Extension ===")
+    autoware_src = project_root / 'autoware_lanelet2_extension'
+    autoware_build = project_root / 'build' / 'autoware_lanelet2_extension'
+    
+    # Skip validation dependency for now
+    if not build_cmake_project(autoware_src, autoware_build, install_dir):
+        print("⚠️  Autoware Extension build failed (likely validation dependency)")
+        print("Core Lanelet2 libraries are still available")
+    else:
+        print("✅ Autoware Extension built successfully")
+    
+    # Build autoware_lanelet2_extension_python
+    print("\n=== Building Autoware Lanelet2 Extension Python ===")
+    python_src = project_root / 'autoware_lanelet2_extension_python'
+    python_build = project_root / 'build' / 'autoware_lanelet2_extension_python'
+    
+    if not build_cmake_project(python_src, python_build, install_dir):
+        print("⚠️  Autoware Python Extension build failed")
+        print("Core Lanelet2 libraries are still available")
+    else:
+        print("✅ Autoware Python Extension built successfully")
     
     print("\n=== Build completed successfully! ===")
     print(f"Libraries installed to: {install_dir}")

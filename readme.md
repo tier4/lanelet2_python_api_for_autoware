@@ -80,12 +80,33 @@ print("Available modules:", dir(lanelet2))
 
 ## Available Modules
 
+### Core Lanelet2 Modules
 - **lanelet2.core**: Core Lanelet2 primitives and data structures
 - **lanelet2.io**: Reading and writing Lanelet2 maps
 - **lanelet2.projection**: Coordinate system projections
 - **lanelet2.routing**: Routing and path planning
 - **lanelet2.traffic_rules**: Traffic rule definitions
 - **lanelet2.matching**: Map matching utilities
+
+### Autoware Extension Modules
+- **autoware_lanelet2_extension_python.projection**: MGRS and Transverse Mercator projectors
+- **autoware_lanelet2_extension_python.regulatory_elements**: Autoware-specific traffic elements
+- **autoware_lanelet2_extension_python.utility**: Query and utility functions for Autoware
+
+### Usage Examples
+```python
+# Core Lanelet2
+from lanelet2 import core, io, routing
+map = io.load("map.osm")
+
+# Autoware Extensions  
+from autoware_lanelet2_extension_python.projection import MGRSProjector
+from autoware_lanelet2_extension_python.regulatory_elements import AutowareTrafficLight
+from autoware_lanelet2_extension_python.utility import query
+
+projector = MGRSProjector()
+traffic_lights = query.autowareTrafficLights(map)
+```
 
 ## Development
 

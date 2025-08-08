@@ -8,10 +8,14 @@ import os
 
 # Add the install directory to Python path
 current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-install_lib_path = os.path.join(current_dir, 'install', 'lib', 'python3', 'dist-packages')
+install_lib_path = os.path.abspath(os.path.join(current_dir, 'install', 'lib', 'python3', 'dist-packages'))
 
-if os.path.exists(install_lib_path) and install_lib_path not in sys.path:
+# Always add the path at the beginning to ensure it takes priority
+if os.path.exists(install_lib_path):
+    if install_lib_path in sys.path:
+        sys.path.remove(install_lib_path)
     sys.path.insert(0, install_lib_path)
+    print(f"🔧 Added Lanelet2 path: {install_lib_path}")
 
 try:
     # Import lanelet2 core modules
