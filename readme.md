@@ -1,31 +1,121 @@
-# Standable Autoware Lanelet2 Extension
+# Lanelet2 Python API for Autoware
 
+A standalone Python API for Lanelet2 and Autoware Lanelet2 Extension, managed with UV for easy installation and dependency management.
 
-## Setup
-This repository will build and install (first in the local directory) the Lanelet2 library and the autoware_lanelet2_extension.
+## Features
 
+- 🚀 **Easy Installation**: Use UV for streamlined dependency management
+- 📦 **Standalone Package**: No ROS dependencies required
+- 🔧 **Automated Build**: Single command builds all C++ libraries
+- 🐍 **Pure Python API**: Import and use like any Python package
+- 📊 **NumPy Integration**: Uses numpy.array instead of geometry messages
+
+## System Requirements
+
+- **OS**: Ubuntu 20.04/22.04 or compatible Linux distribution
+- **Python**: 3.9+
+- **UV**: Latest version recommended
+- **System Dependencies**:
+  - git, gcc, cmake
+  - libboost-dev, libeigen3-dev, libpugixml-dev, libgeographic-dev
+  - libboost-python-dev, libboost-serialization-dev, librange-v3-dev
+  - libboost-filesystem-dev, libboost-program-options-dev
+
+## Quick Start
+
+### 1. Install System Dependencies
+```bash
+# Ubuntu/Debian
+sudo apt install git gcc cmake python3 python3-pip \
+  libboost-dev libeigen3-dev libpugixml-dev libgeographic-dev \
+  libboost-python-dev libboost-serialization-dev librange-v3-dev \
+  libboost-filesystem-dev libboost-program-options-dev
+
+# Or use the provided script (requires sudo)
+bash pre-install.sh
 ```
-## Common packages only not available in bare ubuntu container
-sudo apt install git gcc cmake python3 python3-pip
 
-## install addtional necessary packages
+### 2. Install with UV
+```bash
+# Install UV if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install the package in development mode
+uv pip install -e .
+
+# Build the C++ libraries
+uv run lanelet2-build
+```
+
+### 3. Use the Library
+```python
+import lanelet2
+from lanelet2 import core, io, projection, routing, traffic_rules
+
+# Your Lanelet2 code here...
+print("Lanelet2 modules available:", dir(lanelet2))
+```
+
+## Alternative Setup (Legacy)
+
+If you prefer the original setup method:
+
+```bash
+# Install system dependencies
 bash pre-install.sh 
 
-## build the repositories and it will create an `install` folder locally
+# Build libraries manually
 bash build.sh
 
-## add environmental variables in the current terminal
+# Set environment variables
 source setup.bash
 ```
 
-Then we can use `lanelet2` and `autoware_lanelet2_extension_python` as if normal python packages everywhere.
+## Available Modules
 
-I have already tested that I can launch lanelet2 (and the sub-packages) package normally, (with the installation pipeline reproduced in ubuntu 22.04 container).
+- **lanelet2.core**: Core Lanelet2 primitives and data structures
+- **lanelet2.io**: Reading and writing Lanelet2 maps
+- **lanelet2.projection**: Coordinate system projections
+- **lanelet2.routing**: Routing and path planning
+- **lanelet2.traffic_rules**: Traffic rule definitions
+- **lanelet2.matching**: Map matching utilities
 
-###
-Thanks https://github.com/embedded-software-laboratory/Rosless-Lanelet2 for there developments.
+## Development
 
-## API Changes
+```bash
+# Install development dependencies
+uv sync --dev
 
-- Utilize numpy.array instead of geometry pose messages.
-- Improve python function documentation. 
+# Run tests
+uv run pytest
+
+# Build documentation
+uv run python -m docs
+```
+
+## Project Structure
+
+```
+├── lanelet2_python_api/          # Python package
+│   ├── __init__.py              # Package initialization
+│   └── build.py                 # Build script
+├── Rosless-Lanelet2/            # Core Lanelet2 libraries
+├── autoware_lanelet2_extension/ # Autoware-specific extensions
+├── pyproject.toml               # UV configuration
+└── install/                     # Built libraries (created by build)
+```
+
+## API Changes from Original
+
+- ✅ Use `numpy.array` instead of geometry pose messages
+- ✅ Improved Python function documentation
+- ✅ Simplified import structure
+- ✅ No ROS dependencies required
+
+## Acknowledgments
+
+Thanks to [Rosless-Lanelet2](https://github.com/embedded-software-laboratory/Rosless-Lanelet2) for their developments that made this standalone version possible.
+
+## License
+
+This project follows the same license terms as the original Lanelet2 project. 
