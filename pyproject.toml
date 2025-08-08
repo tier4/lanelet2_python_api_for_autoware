@@ -10,7 +10,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lanelet2-python-api"
+name = "autoware_lanelet2_extension_python"
 version = "0.1.0"
 description = "Python bindings for Lanelet2 with Autoware extension"
 authors = [
@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [tool.poetry]
-name = "lanelet2-python-api"
+name = "autoware-lanelet2-extension-python"
 version = "0.1.0"
 description = "Python bindings for Lanelet2 with Autoware extension"
 authors = ["Masaya Kataoka <ms.kataoka@gmail.com>"]
