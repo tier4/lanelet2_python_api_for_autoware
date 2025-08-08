@@ -4,9 +4,10 @@ A standalone Python API for Lanelet2 and Autoware Lanelet2 Extension, managed wi
 
 ## Features
 
-- 🚀 **Easy Installation**: Use UV for streamlined dependency management
+- ⚡ **One-Command Setup**: `uv run lanelet2-install` does everything automatically
+- 🚀 **Easy Installation**: UV-powered dependency management with auto-build
 - 📦 **Standalone Package**: No ROS dependencies required
-- 🔧 **Automated Build**: Single command builds all C++ libraries
+- 🔧 **Smart Building**: Automatic C++ library building on install
 - 🐍 **Pure Python API**: Import and use like any Python package
 - 📊 **NumPy Integration**: Uses numpy.array instead of geometry messages
 
@@ -21,63 +22,61 @@ A standalone Python API for Lanelet2 and Autoware Lanelet2 Extension, managed wi
   - libboost-python-dev, libboost-serialization-dev, librange-v3-dev
   - libboost-filesystem-dev, libboost-program-options-dev
 
-## Quick Start
+## ⚡ Ultra-Quick Start (30 seconds)
 
-### 1. Install System Dependencies
 ```bash
-# Ubuntu/Debian
+# 1. Install UV (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 2. Install system dependencies (Ubuntu/Debian)
 sudo apt install git gcc cmake python3 python3-pip \
   libboost-dev libeigen3-dev libpugixml-dev libgeographic-dev \
   libboost-python-dev libboost-serialization-dev librange-v3-dev \
   libboost-filesystem-dev libboost-program-options-dev
 
-# Or use the provided script (requires sudo)
-bash pre-install.sh
-```
-
-### 2. Install with UV
-
-#### Option A: One-Command Install (Recommended)
-```bash
-# Install UV if you haven't already
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# One command to install and build everything
+# 3. One command to rule them all! 🎯
 uv run lanelet2-install
 ```
 
-#### Option B: Step-by-Step Install
-```bash
-# Install the package in development mode (auto-builds libraries)
-uv pip install -e .
+That's it! The system will:
+- ✅ Install the Python package
+- ✅ Build all C++ libraries automatically  
+- ✅ Configure import paths
+- ✅ Verify everything works
+- ✅ Show you how to use it
 
-# Or manually build libraries if needed
+### Alternative Installation Methods
+
+#### Option A: Auto-Build on Install
+```bash
+# Package installs AND builds automatically
+uv pip install -e .
+```
+
+#### Option B: Manual Build Control
+```bash
+# Install first, build later
+uv pip install -e . --no-build-isolation
 uv run lanelet2-build
 ```
 
-### 3. Use the Library
+#### Option C: Legacy Method (Still Works!)
+```bash
+bash pre-install.sh    # System dependencies
+bash build.sh          # Build libraries
+source setup.bash      # Set environment
+```
+
+## Usage
+
 ```python
 import lanelet2
 from lanelet2 import core, io, projection, routing, traffic_rules
 
-# Your Lanelet2 code here...
-print("Lanelet2 modules available:", dir(lanelet2))
+# All modules ready to use!
+print("Available modules:", dir(lanelet2))
 ```
 
-## Alternative Setup (Legacy)
-
-If you prefer the original setup method:
-
-```bash
-# Install system dependencies
-bash pre-install.sh 
-
-# Build libraries manually
-bash build.sh
-
-# Set environment variables
-source setup.bash
-```
 
 ## Available Modules
 
