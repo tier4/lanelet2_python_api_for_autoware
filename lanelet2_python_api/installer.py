@@ -7,6 +7,7 @@ Combines package installation and library building
 import os
 import subprocess
 import sys
+import shutil
 from pathlib import Path
 
 
@@ -49,6 +50,78 @@ def check_uv_environment():
         print(f"🔧 {output.strip()}")
     
     return True
+
+
+def copy_shared_libraries():
+    """Copy shared libraries (.so files) to UV virtual environment and create wrapper"""
+    print("📚 Copying shared libraries to virtual environment...")
+    
+    # Get paths
+    project_root = Path.cwd()
+    install_lib_path = project_root / "install" / "lib"
+    venv_lib_path = project_root / ".venv" / "lib"
+    venv_bin_path = project_root / ".venv" / "bin"
+    
+    if not install_lib_path.exists():
+        print(f"⚠️  Install library path not found: {install_lib_path}")
+        print("   Run 'uv run lanelet2-build' first to build libraries")
+        return False
+    
+    if not venv_lib_path.exists():
+        print(f"⚠️  Virtual environment lib path not found: {venv_lib_path}")
+        return False
+    
+    # Find all .so files
+    so_files = list(install_lib_path.glob("*.so*"))
+    
+    if not so_files:
+        print("⚠️  No shared libraries found to copy")
+        return False
+    
+    # Copy each .so file
+    copied_count = 0
+    for so_file in so_files:
+        dest_path = venv_lib_path / so_file.name
+        try:
+            shutil.copy2(so_file, dest_path)
+            print(f"   ✅ Copied: {so_file.name}")
+            copied_count += 1
+        except Exception as e:
+            print(f"   ❌ Failed to copy {so_file.name}: {e}")
+    
+    # Create UV wrapper script with library path
+    if venv_bin_path.exists() and copied_count > 0:
+        wrapper_script = venv_bin_path / "uv-run-with-libs"
+        wrapper_content = f"""#!/bin/bash
+# UV run wrapper that sets up library path automatically
+
+# Get the directory of this script (venv/bin)
+SCRIPT_DIR="$(cd "$(dirname "${{BASH_SOURCE[0]}}")" && pwd)"
+VENV_ROOT="$(dirname "$SCRIPT_DIR")"
+VENV_LIB="$VENV_ROOT/lib"
+
+# Add venv lib to LD_LIBRARY_PATH if libraries exist
+if [ -f "$VENV_LIB/liblanelet2_core.so.1.1.1" ]; then
+    export LD_LIBRARY_PATH="$VENV_LIB:$LD_LIBRARY_PATH"
+fi
+
+# Execute the command with uv run
+exec uv run "$@"
+"""
+        try:
+            wrapper_script.write_text(wrapper_content)
+            wrapper_script.chmod(0o755)
+            print(f"   ✅ Created wrapper script: {wrapper_script}")
+        except Exception as e:
+            print(f"   ⚠️  Failed to create wrapper script: {e}")
+    
+    if copied_count > 0:
+        print(f"✅ Successfully copied {copied_count} shared libraries to virtual environment")
+        print("💡 Libraries are automatically preloaded - normal 'uv run' commands will work!")
+        return True
+    else:
+        print("❌ No libraries were copied successfully")
+        return False
 
 
 def main():
@@ -107,6 +180,10 @@ def main():
         # Step 3: Build libraries automatically (triggered by setup.py post-install hook)
         print("\n🏗️  C++ libraries will be built automatically via post-install hooks")
         
+        # Step 3.5: Copy shared libraries to virtual environment
+        print()
+        copy_shared_libraries()
+        
         # Step 4: Verify installation within UV environment
         print("\n🔍 Verifying installation in UV environment...")
         success, output = run_command(
@@ -131,6 +208,13 @@ except ImportError as e:
     print('Run: uv run lanelet2-build')
 """],
                 "Testing full functionality"
+            )
+        
+        # Test the readme example
+        if success:
+            success, output = run_command(
+                ["uv", "run", "python", "-c", "import lanelet2; print('Success!')"],
+                "Testing readme example"
             )
         
         if success:
