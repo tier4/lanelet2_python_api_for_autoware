@@ -1,0 +1,15 @@
+Metadata-Version: 2.4
+Name: lanelet2-python-api-for-autoware
+Version: 0.1.0
+Summary: Python bindings for Lanelet2 with Autoware extension
+Author: Masaya Kataoka
+Author-email: ms.kataoka@gmail.com
+License: MIT
+License-File: LICENSE
+Requires-Dist: numpy
+Dynamic: author
+Dynamic: author-email
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: summary

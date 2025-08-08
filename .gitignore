@@ -4,3 +4,37 @@ install
 .temp.git
 __pycache__
 .ipynb_checkpoints
+
+# Python build artifacts
+dist/
+*.egg-info/
+_skbuild/
+MANIFEST.in
+
+# Poetry
+poetry.lock
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Python
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+.venv/
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
