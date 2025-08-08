@@ -56,14 +56,47 @@ def copy_shared_libraries():
     """Copy shared libraries (.so files) to UV virtual environment and create wrapper"""
     print("📚 Copying shared libraries to virtual environment...")
     
-    # Get paths
+    # Get paths - handle both development and installed package scenarios
     project_root = Path.cwd()
-    install_lib_path = project_root / "install" / "lib"
+    
+    # Try to find install/lib in various locations
+    install_lib_paths = [
+        project_root / "install" / "lib",  # Development mode
+    ]
+    
+    # Also check if we're in a package installation
+    try:
+        import lanelet2_python_api
+        pkg_path = Path(lanelet2_python_api.__file__).parent
+        install_lib_paths.extend([
+            pkg_path / "install" / "lib",
+            pkg_path.parent / "install" / "lib",
+            pkg_path / "lib",
+        ])
+    except ImportError:
+        pass
+    
+    # Find the first existing install lib path
+    install_lib_path = None
+    for path in install_lib_paths:
+        if path.exists():
+            install_lib_path = path
+            break
+    
     venv_lib_path = project_root / ".venv" / "lib"
     venv_bin_path = project_root / ".venv" / "bin"
     
-    if not install_lib_path.exists():
-        print(f"⚠️  Install library path not found: {install_lib_path}")
+    # Try to detect other virtual environments
+    if not venv_lib_path.exists() and hasattr(sys, 'prefix'):
+        venv_root = Path(sys.prefix)
+        if venv_root != Path(sys.base_prefix):  # We're in a virtual environment
+            venv_lib_path = venv_root / "lib"
+            venv_bin_path = venv_root / "bin"
+    
+    if not install_lib_path:
+        print("⚠️  Install library path not found in any expected location:")
+        for path in install_lib_paths:
+            print(f"     Checked: {path}")
         print("   Run 'uv run lanelet2-build' first to build libraries")
         return False
     

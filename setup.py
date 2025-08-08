@@ -112,4 +112,23 @@ setup(
         'develop': PostDevelopCommand,
         'install': PostInstallCommand,
     },
+    # Include shared libraries in the package
+    data_files=[
+        ('lib', [
+            'install/lib/liblanelet2_core.so.1.1.1',
+            'install/lib/liblanelet2_core.so',
+            'install/lib/liblanelet2_extension_lib.so',
+            'install/lib/liblanelet2_io.so',
+            'install/lib/liblanelet2_matching.so',
+            'install/lib/liblanelet2_projection.so',
+            'install/lib/liblanelet2_routing.so',
+            'install/lib/liblanelet2_traffic_rules.so',
+            'install/lib/liblanelet2_validation.so',
+        ] if os.path.exists('install/lib') else []),
+    ] if os.path.exists('install/lib') else [],
+    include_package_data=True,
+    package_data={
+        'lanelet2_python_api': ['install/**/*'],
+        '': ['install/**/*'],
+    },
 )

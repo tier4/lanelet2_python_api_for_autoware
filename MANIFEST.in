@@ -1,0 +1,7 @@
+include *.md
+include *.txt
+include *.sh
+recursive-include install *
+recursive-include lanelet2_python_api *
+global-exclude *.pyc
+global-exclude __pycache__

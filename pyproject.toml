@@ -17,6 +17,7 @@ packages = ["lanelet2_python_api"]
 include-package-data = true
 
 [tool.setuptools.package-data]
+"lanelet2_python_api" = ["*.py"]
 "*" = ["install/**/*"]
 
 [tool.uv]
