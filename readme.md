@@ -36,14 +36,22 @@ bash pre-install.sh
 ```
 
 ### 2. Install with UV
+
+#### Option A: One-Command Install (Recommended)
 ```bash
 # Install UV if you haven't already
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install the package in development mode
+# One command to install and build everything
+uv run lanelet2-install
+```
+
+#### Option B: Step-by-Step Install
+```bash
+# Install the package in development mode (auto-builds libraries)
 uv pip install -e .
 
-# Build the C++ libraries
+# Or manually build libraries if needed
 uv run lanelet2-build
 ```
 
