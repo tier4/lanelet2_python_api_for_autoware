@@ -2,26 +2,13 @@
 requires = ["poetry-core>=1.0.0", "scikit-build", "cmake", "ninja", "pybind11"]
 build-backend = "poetry.core.masonry.api"
 
-[project]
-name = "autoware_lanelet2_extension_python"
-version = "0.1.0"
-description = "Python bindings for Lanelet2 with Autoware extension"
-authors = [
-    {name = "Masaya Kataoka", email = "ms.kataoka@gmail.com"}
-]
-readme = "readme.md"
-requires-python = ">=3.10"
-dependencies = [
-    "numpy>=1.21.0",
-]
-
 [tool.poetry]
 name = "autoware-lanelet2-extension-python"
 version = "0.1.0"
 description = "Python bindings for Lanelet2 with Autoware extension"
 authors = ["Masaya Kataoka <ms.kataoka@gmail.com>"]
 readme = "readme.md"
-packages = [{include = "autoware_lanelet2_extension_python", from = "autoware_lanelet2_extension_python"}]
+packages = [{include = "autoware_lanelet2_extension_python"}]
 
 [tool.poetry.build]
 generate-setup-file = false
