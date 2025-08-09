@@ -7,8 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
-set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
-set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+set(CMAKE_INSTALL_RPATH "$ORIGIN")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 set(PYTHON_INSTALL_DIR "lib/python3/dist-packages")
 
 # Add path to custom cmake modules if needed
@@ -117,6 +118,9 @@ target_include_directories(_${PROJECT_NAME}_boost_python_utility
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
+set_target_properties(_${PROJECT_NAME}_boost_python_utility PROPERTIES
+  INSTALL_RPATH "$ORIGIN"
+)
 
 add_library(_${PROJECT_NAME}_boost_python_projection SHARED
   src/projection.cpp
@@ -137,6 +141,9 @@ target_include_directories(_${PROJECT_NAME}_boost_python_projection
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
+set_target_properties(_${PROJECT_NAME}_boost_python_projection PROPERTIES
+  INSTALL_RPATH "$ORIGIN"
+)
 
 add_library(_${PROJECT_NAME}_boost_python_regulatory_elements SHARED
   src/regulatory_elements.cpp
@@ -147,6 +154,9 @@ target_link_libraries(_${PROJECT_NAME}_boost_python_regulatory_elements
   Lanelet2::core
   Lanelet2::io
   Lanelet2::Extension
+)
+set_target_properties(_${PROJECT_NAME}_boost_python_regulatory_elements PROPERTIES
+  INSTALL_RPATH "$ORIGIN"
 )
 
 install(TARGETS

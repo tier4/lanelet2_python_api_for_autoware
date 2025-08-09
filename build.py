@@ -72,23 +72,135 @@ def build(setup_kwargs: Dict[str, Any]) -> None:
         cmake_args=["-Dpybind11_DIR=" + str(pybind11_path)],
     )
 
-    # src_dir = Path(skbuild.constants.CMAKE_INSTALL_DIR())
+    src_dir = Path(skbuild.constants.CMAKE_INSTALL_DIR())
 
-    # # Get the installation directory for the Poetry virtual environment
-    # dest_dir = (
-    #     venv_path / "lib" / f"python{sysconfig.get_python_version()}" / "site-packages"
-    # )
+    # Get the installation directory for the Poetry virtual environment
+    dest_dir = (
+        venv_path / "lib" / f"python{sysconfig.get_python_version()}" / "site-packages"
+    )
 
-    # print("Copy from " + str(src_dir) + " to " + str(dest_dir))
+    print(f"Copy from {src_dir} to {dest_dir}")
+    print(f"Source directory exists: {src_dir.exists()}")
+    if src_dir.exists():
+        for file in src_dir.glob("**/*.so"):
+            print(f"Found .so file: {file}")
 
-    # # Delete C-extensions copied in previous runs, just in case.
-    # # remove_files(dest_dir, "**/*.pyd")
-    # remove_files(dest_dir, "**/tf2_amber.*.so")
+    # Delete C-extensions copied in previous runs, just in case.
+    remove_files(dest_dir, "**/_lanelet2_extension_python_boost_python_*.so")
+    remove_files(dest_dir, "**/_lanelet2_python_api.*.so")
 
-    # # Copy built C-extensions back to the Poetry virtual environment.
-    # copy_files(src_dir, dest_dir, "**/*.pyd")
-    # copy_files(src_dir, dest_dir, "**/*.so")
-    # copy_files(src_dir, Path("amber_mcap"), "**/*.so")
+    # Copy built C-extensions back to the Poetry virtual environment.
+    if src_dir.exists():
+        copy_files(src_dir, dest_dir, "**/*.pyd")
+        copy_files(src_dir, dest_dir, "**/*.so")
+        
+        # Fix Python extension modules - move from nested structure to correct location
+        nested_python_dir = dest_dir / "lib" / "python3" / "dist-packages" / "autoware_lanelet2_extension_python"
+        correct_python_dir = dest_dir / "autoware_lanelet2_extension_python"
+        if nested_python_dir.exists():
+            print(f"Moving Python extensions from {nested_python_dir} to {correct_python_dir}")
+            for so_file in nested_python_dir.glob("*.so"):
+                target = correct_python_dir / so_file.name
+                if target.exists():
+                    target.unlink()  # Remove existing file
+                so_file.rename(target)
+                print(f"moved {so_file} to {target}")
+            # Clean up nested directory structure
+            try:
+                nested_python_dir.rmdir()
+                (dest_dir / "lib" / "python3" / "dist-packages").rmdir()
+                (dest_dir / "lib" / "python3").rmdir()
+                (dest_dir / "lib").rmdir()
+            except OSError:
+                pass  # Directory not empty or doesn't exist
+                
+        # Copy all required shared libraries to the Python extension directory
+        # This ensures $ORIGIN RPATH can find them
+        print("Copying required libraries to Python extension directory...")
+        required_libs = [
+            "liblanelet2_core.so",
+            "liblanelet2_core.so.1.1.1", 
+            "liblanelet2_io.so",
+            "liblanelet2_projection.so",
+            "liblanelet2_routing.so", 
+            "liblanelet2_traffic_rules.so",
+            "liblanelet2_validation.so",
+            "liblanelet2_matching.so",
+            "liblanelet2_extension_lib.so"
+        ]
+        
+        for lib_name in required_libs:
+            # Try to find the library in various locations
+            found = False
+            search_dirs = [
+                src_dir / "lib",
+                Path("install/lib"),
+                Path("Rosless-Lanelet2/build/lanelet2_core"),
+                Path("Rosless-Lanelet2/build/lanelet2_io"),
+                Path("Rosless-Lanelet2/build/lanelet2_projection"),
+                Path("Rosless-Lanelet2/build/lanelet2_routing"),
+                Path("Rosless-Lanelet2/build/lanelet2_traffic_rules"),
+                Path("Rosless-Lanelet2/build/lanelet2_validation"),
+                Path("Rosless-Lanelet2/build/lanelet2_matching"),
+                Path("autoware_lanelet2_extension/build")
+            ]
+            
+            for search_dir in search_dirs:
+                lib_path = search_dir / lib_name
+                if lib_path.exists():
+                    target_path = correct_python_dir / lib_name
+                    if target_path.exists():
+                        target_path.unlink()
+                    shutil.copy2(lib_path, target_path)
+                    print(f"copied {lib_path} to {target_path}")
+                    found = True
+                    break
+                    
+            if not found:
+                print(f"Warning: Could not find {lib_name}")
+                
+        # Create all necessary symlinks and copies for versioned libraries
+        extension_dir = correct_python_dir
+        
+        # Handle liblanelet2_core.so versioning
+        core_versioned = extension_dir / "liblanelet2_core.so.1.1.1"
+        if core_versioned.exists():
+            # Create symlink for version 1
+            core_v1 = extension_dir / "liblanelet2_core.so.1"
+            if not core_v1.exists():
+                core_v1.symlink_to("liblanelet2_core.so.1.1.1")
+                print(f"created symlink {core_v1} -> liblanelet2_core.so.1.1.1")
+                
+            # Create unversioned copy
+            core_unversioned = extension_dir / "liblanelet2_core.so"
+            if core_unversioned.exists():
+                core_unversioned.unlink()
+            shutil.copy2(core_versioned, core_unversioned)
+            print(f"copied {core_versioned} to {core_unversioned}")
+        
+        # Copy all shared libraries from src_dir/lib to site-packages for RPATH
+        src_lib_dir = src_dir / "lib"
+        if src_lib_dir.exists():
+            copy_files(src_lib_dir, dest_dir, "lib*.so*")
+        
+        # Copy all shared libraries from Rosless-Lanelet2 build directories
+        rosless_build_dir = Path("Rosless-Lanelet2/build")
+        if rosless_build_dir.exists():
+            copy_files(rosless_build_dir, dest_dir, "**/lib*.so*")
+        
+        # Copy all shared libraries from autoware_lanelet2_extension build directory  
+        extension_build_dir = Path("autoware_lanelet2_extension/build")
+        if extension_build_dir.exists():
+            copy_files(extension_build_dir, dest_dir, "**/lib*.so*")
+        
+        # Copy from install directory
+        install_lib_dir = Path("install/lib")
+        if install_lib_dir.exists():
+            copy_files(install_lib_dir, dest_dir, "lib*.so*")
+            
+        print("Copied extensions and shared libraries to Poetry venv")
+    else:
+        print(f"Warning: Source directory {src_dir} does not exist")
 
 
 if __name__ == "__main__":
