@@ -99,18 +99,17 @@ def build(setup_kwargs: Dict[str, Any]) -> None:
         correct_python_dir = dest_dir / "autoware_lanelet2_extension_python"
         if nested_python_dir.exists():
             print(f"Moving Python extensions from {nested_python_dir} to {correct_python_dir}")
+            # Ensure the correct directory exists
+            correct_python_dir.mkdir(parents=True, exist_ok=True)
             for so_file in nested_python_dir.glob("*.so"):
                 target = correct_python_dir / so_file.name
                 if target.exists():
                     target.unlink()  # Remove existing file
-                so_file.rename(target)
-                print(f"moved {so_file} to {target}")
+                shutil.copy2(so_file, target)  # Use copy instead of rename
+                print(f"copied {so_file} to {target}")
             # Clean up nested directory structure
             try:
-                nested_python_dir.rmdir()
-                (dest_dir / "lib" / "python3" / "dist-packages").rmdir()
-                (dest_dir / "lib" / "python3").rmdir()
-                (dest_dir / "lib").rmdir()
+                shutil.rmtree(dest_dir / "lib")
             except OSError:
                 pass  # Directory not empty or doesn't exist
                 
