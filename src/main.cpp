@@ -6,6 +6,8 @@
 #include <lanelet2_core/primitives/Lanelet.h>
 #include <lanelet2_core/primitives/Point.h>
 #include <lanelet2_io/Io.h>
+#include <lanelet2_io/Configuration.h>
+#include <lanelet2_projection/Mercator.h>
 #include <lanelet2_routing/RoutingGraph.h>
 #include <lanelet2_traffic_rules/TrafficRulesFactory.h>
 
@@ -18,9 +20,9 @@ PYBIND11_MODULE(_lanelet2_python_api, m) {
     py::class_<lanelet::Point3d>(m, "Point3d")
         .def(py::init<lanelet::Id, double, double, double>())
         .def_property_readonly("id", &lanelet::Point3d::id)
-        .def_property_readonly("x", &lanelet::Point3d::x)
-        .def_property_readonly("y", &lanelet::Point3d::y)
-        .def_property_readonly("z", &lanelet::Point3d::z);
+        .def_property_readonly("x", [](const lanelet::Point3d& p) { return p.x(); })
+        .def_property_readonly("y", [](const lanelet::Point3d& p) { return p.y(); })
+        .def_property_readonly("z", [](const lanelet::Point3d& p) { return p.z(); });
 
     // Basic LineString3d binding
     py::class_<lanelet::LineString3d>(m, "LineString3d")
@@ -35,16 +37,19 @@ PYBIND11_MODULE(_lanelet2_python_api, m) {
     // LaneletMap binding
     py::class_<lanelet::LaneletMap>(m, "LaneletMap")
         .def(py::init<>())
-        .def("add", py::overload_cast<const lanelet::Lanelet&>(&lanelet::LaneletMap::add))
-        .def("add", py::overload_cast<const lanelet::Point3d&>(&lanelet::LaneletMap::add))
-        .def("add", py::overload_cast<const lanelet::LineString3d&>(&lanelet::LaneletMap::add));
+        .def("add", static_cast<void (lanelet::LaneletMap::*)(lanelet::Lanelet)>(&lanelet::LaneletMap::add))
+        .def("add", static_cast<void (lanelet::LaneletMap::*)(lanelet::Point3d)>(&lanelet::LaneletMap::add))
+        .def("add", static_cast<void (lanelet::LaneletMap::*)(lanelet::LineString3d)>(&lanelet::LaneletMap::add));
 
-    // IO functions
-    m.def("load", &lanelet::io::load, "Load lanelet map from file",
-          py::arg("filename"), py::arg("projector"), py::arg("errors") = nullptr);
+    // IO functions (using static_cast to resolve overloads)
+    m.def("load", static_cast<std::unique_ptr<lanelet::LaneletMap>(*)(const std::string&, const lanelet::Projector&, lanelet::ErrorMessages*, const lanelet::io::Configuration&)>(&lanelet::load), 
+          "Load lanelet map from file",
+          py::arg("filename"), py::arg("projector"), py::arg("errors") = nullptr, py::arg("params") = lanelet::io::Configuration(),
+          py::return_value_policy::take_ownership);
 
-    m.def("write", &lanelet::io::write, "Write lanelet map to file",
-          py::arg("filename"), py::arg("map"), py::arg("projector"));
+    m.def("write", static_cast<void(*)(const std::string&, const lanelet::LaneletMap&, const lanelet::Projector&, lanelet::ErrorMessages*, const lanelet::io::Configuration&)>(&lanelet::write), 
+          "Write lanelet map to file",
+          py::arg("filename"), py::arg("map"), py::arg("projector"), py::arg("errors") = nullptr, py::arg("params") = lanelet::io::Configuration());
 
     // Add version info
     m.attr("__version__") = "0.1.0";

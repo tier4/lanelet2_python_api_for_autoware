@@ -1,5 +1,6 @@
 # Find required packages
 find_package(pybind11 REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 # Set installation prefix for dependencies if not set
 if(NOT CMAKE_INSTALL_PREFIX)
@@ -9,13 +10,10 @@ endif()
 # Set install directory for dependencies
 set(LANELET2_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../install)
 
-# Create Python extension module
-add_library(_lanelet2_python_api MODULE
+# Create Python extension module using pybind11
+pybind11_add_module(_lanelet2_python_api
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/main.cpp
 )
-
-# Set properties for the Python module
-python_extension_module(_lanelet2_python_api)
 
 # Include directories
 target_include_directories(_lanelet2_python_api PRIVATE
@@ -27,6 +25,7 @@ target_include_directories(_lanelet2_python_api PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../Rosless-Lanelet2/lanelet2_traffic_rules/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../Rosless-Lanelet2/lanelet2_matching/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../autoware_lanelet2_extension/include
+    ${EIGEN3_INCLUDE_DIR}
 )
 
 # Link directories
