@@ -34,4 +34,7 @@ endif()
 find_package(PythonExtensions REQUIRED)
 
 # Add subdirectory for the Python module
+add_subdirectory(Rosless-Lanelet2)
+add_subdirectory(autoware_lanelet2_extension)
+add_subdirectory(autoware_lanelet2_extension_python)
 add_subdirectory(lanelet2_python)

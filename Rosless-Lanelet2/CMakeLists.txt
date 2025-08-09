@@ -1,5 +1,5 @@
 # At LEAST 2.8 but newer is better
-cmake_minimum_required(VERSION 3.2 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.10)
 project(lanelet2 VERSION 1.1.1 LANGUAGES CXX)
 
 # Must use GNUInstallDirs to install libraries into correct
