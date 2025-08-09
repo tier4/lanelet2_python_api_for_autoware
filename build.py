@@ -56,21 +56,21 @@ def copy_files(src_dir: Path, dest_dir: Path, pattern: str) -> None:
 def build(setup_kwargs: Dict[str, Any]) -> None:
     venv_path = get_poetry_venv_path()
     """Build C-extensions."""
-    # pybind11_path = (
-    #     venv_path
-    #     / "lib"
-    #     / f"python{sysconfig.get_python_version()}"
-    #     / "site-packages"
-    #     / "pybind11"
-    #     / "share"
-    #     / "cmake"
-    #     / "pybind11"
-    # )
-    # skbuild.setup(
-    #     **setup_kwargs,
-    #     script_args=["build_ext"],
-    #     cmake_args=["-Dpybind11_DIR=" + str(pybind11_path)],
-    # )
+    pybind11_path = (
+        venv_path
+        / "lib"
+        / f"python{sysconfig.get_python_version()}"
+        / "site-packages"
+        / "pybind11"
+        / "share"
+        / "cmake"
+        / "pybind11"
+    )
+    skbuild.setup(
+        **setup_kwargs,
+        script_args=["build_ext"],
+        cmake_args=["-Dpybind11_DIR=" + str(pybind11_path)],
+    )
 
     # src_dir = Path(skbuild.constants.CMAKE_INSTALL_DIR())
 

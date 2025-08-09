@@ -21,13 +21,15 @@ version = "0.1.0"
 description = "Python bindings for Lanelet2 with Autoware extension"
 authors = ["Masaya Kataoka <ms.kataoka@gmail.com>"]
 readme = "readme.md"
-packages = [{include = "autoware_lanelet2_extension_python"}]
+# packages = [{include = "autoware_lanelet2_extension_python"}]
+
+[tool.poetry.build]
+generate-setup-file = false
+script = "build.py"
 
 [tool.poetry.dependencies]
 python = "^3.10"
 numpy = "^1.21.0"
-
-[tool.poetry.group.dev.dependencies]
 setuptools = "^68.0.0"
 wheel = "^0.40.0"
 scikit-build = "^0.17.0"
