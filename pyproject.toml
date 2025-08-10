@@ -8,12 +8,22 @@ version = "0.1.0"
 description = "Python bindings for Lanelet2 with Autoware extension"
 authors = ["Masaya Kataoka <ms.kataoka@gmail.com>"]
 readme = "readme.md"
-packages = [{include = "autoware_lanelet2_extension_python"}]
+packages = [
+    {include = "autoware_lanelet2_extension_python"},
+    {include = "lanelet2_python"}
+]
 
 # Include source files for C extensions in sdist and built extensions in wheel
 include = [
+    # Python package files
+    { path = "autoware_lanelet2_extension_python/**/*.py" },
+    { path = "lanelet2_python/**/*.py" },
+    
     # Source files for C extensions must be included in the source distribution
     { path = "CMakeLists.txt", format = "sdist" },
+    { path = "setup.py", format = "sdist" },
+    { path = "setup.cfg", format = "sdist" },
+    { path = "build.py", format = "sdist" },
     { path = "Rosless-Lanelet2/**/*.cpp", format = "sdist" },
     { path = "Rosless-Lanelet2/**/*.h", format = "sdist" },
     { path = "Rosless-Lanelet2/**/*.hpp", format = "sdist" },

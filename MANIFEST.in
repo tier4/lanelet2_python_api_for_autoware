@@ -370,7 +370,7 @@ include autoware_lanelet2_extension_python/src/projection.cpp
 include autoware_lanelet2_extension_python/src/regulatory_elements.cpp
 include autoware_lanelet2_extension_python/src/utility.cpp
 include basic_lanelet2_extraction.ipynb
-include build.sh
+include build.py
 include codecov.yaml
 include example.py
 include example2.py
@@ -381,6 +381,10 @@ include pre-install.sh
 include readme.md
 include setup.bash
 include setup.cfg
+include setup.py
+include pyproject.toml
+recursive-include autoware_lanelet2_extension_python *.py
+recursive-include lanelet2_python *.py
 include tutorial_docs/odaiba_lanelet1017.png
 include tutorial_docs/odaiba_map_example.png
 exclude MANIFEST.in
