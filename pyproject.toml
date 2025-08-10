@@ -10,6 +10,29 @@ authors = ["Masaya Kataoka <ms.kataoka@gmail.com>"]
 readme = "readme.md"
 packages = [{include = "autoware_lanelet2_extension_python"}]
 
+# Include source files for C extensions in sdist and built extensions in wheel
+include = [
+    # Source files for C extensions must be included in the source distribution
+    { path = "CMakeLists.txt", format = "sdist" },
+    { path = "Rosless-Lanelet2/**/*.cpp", format = "sdist" },
+    { path = "Rosless-Lanelet2/**/*.h", format = "sdist" },
+    { path = "Rosless-Lanelet2/**/*.hpp", format = "sdist" },
+    { path = "Rosless-Lanelet2/**/CMakeLists.txt", format = "sdist" },
+    { path = "autoware_lanelet2_extension/**/*.cpp", format = "sdist" },
+    { path = "autoware_lanelet2_extension/**/*.hpp", format = "sdist" },
+    { path = "autoware_lanelet2_extension/**/CMakeLists.txt", format = "sdist" },
+    { path = "autoware_lanelet2_extension_python/**/*.cpp", format = "sdist" },
+    { path = "autoware_lanelet2_extension_python/**/CMakeLists.txt", format = "sdist" },
+    { path = "lanelet2_python/**/*.cpp", format = "sdist" },
+    { path = "lanelet2_python/**/CMakeLists.txt", format = "sdist" },
+    
+    # Built C extensions must be included in the wheel distribution
+    { path = "autoware_lanelet2_extension_python/**/*.pyd", format = "wheel" },
+    { path = "autoware_lanelet2_extension_python/**/*.so", format = "wheel" },
+    { path = "lanelet2_python/**/*.pyd", format = "wheel" },
+    { path = "lanelet2_python/**/*.so", format = "wheel" },
+]
+
 [tool.poetry.build]
 generate-setup-file = false
 script = "build.py"
