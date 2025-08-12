@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Python bindings for Lanelet2 with Autoware extension"
 authors = ["Masaya Kataoka <ms.kataoka@gmail.com>"]
 readme = "readme.md"
+license = "Apache-2.0"
 packages = [
     {include = "autoware_lanelet2_extension_python"},
     {include = "lanelet2_python"}

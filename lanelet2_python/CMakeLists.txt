@@ -10,6 +10,12 @@ endif()
 # Set install directory for dependencies
 set(LANELET2_INSTALL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../install)
 
+# Set RPATH settings for bundled libraries
+set(CMAKE_SKIP_BUILD_RPATH FALSE)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+set(CMAKE_INSTALL_RPATH "$ORIGIN;$ORIGIN/lib")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 # Create Python extension module using pybind11
 pybind11_add_module(_lanelet2_python_api
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/main.cpp
@@ -43,5 +49,23 @@ target_link_libraries(_lanelet2_python_api PRIVATE
     lanelet2_extension_lib
 )
 
+# Set RPATH for the extension module
+set_target_properties(_lanelet2_python_api PROPERTIES
+    INSTALL_RPATH "$ORIGIN;$ORIGIN/lib"
+)
+
 # Install the Python module
 install(TARGETS _lanelet2_python_api LIBRARY DESTINATION lanelet2_python)
+
+# Install shared libraries alongside the Python module
+install(FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Rosless-Lanelet2/build/lanelet2_core/liblanelet2_core.so
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Rosless-Lanelet2/build/lanelet2_io/liblanelet2_io.so
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Rosless-Lanelet2/build/lanelet2_projection/liblanelet2_projection.so
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Rosless-Lanelet2/build/lanelet2_routing/liblanelet2_routing.so
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Rosless-Lanelet2/build/lanelet2_traffic_rules/liblanelet2_traffic_rules.so
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Rosless-Lanelet2/build/lanelet2_matching/liblanelet2_matching.so
+    ${CMAKE_CURRENT_SOURCE_DIR}/../autoware_lanelet2_extension/build/liblanelet2_extension_lib.so
+    DESTINATION lanelet2_python/lib
+    OPTIONAL
+)

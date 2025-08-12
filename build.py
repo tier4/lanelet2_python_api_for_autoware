@@ -48,9 +48,12 @@ def copy_files(src_dir: Path, dest_dir: Path, pattern: str) -> None:
             # NOTE: inefficient if subdirectories also match to the pattern.
             copy_files(src, dest, "*")
         else:
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, dest)
-            distutils_log.info(f"copied {src} to {dest}")
+            try:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dest)
+                distutils_log.info(f"copied {src} to {dest}")
+            except (FileNotFoundError, PermissionError) as e:
+                distutils_log.warn(f"failed to copy {src} to {dest}: {e}")
 
 
 def build(setup_kwargs: Dict[str, Any]) -> None:
@@ -113,9 +116,12 @@ def build(setup_kwargs: Dict[str, Any]) -> None:
             except OSError:
                 pass  # Directory not empty or doesn't exist
                 
-        # Copy all required shared libraries to the Python extension directory
-        # This ensures $ORIGIN RPATH can find them
-        print("Copying required libraries to Python extension directory...")
+        # Copy all required shared libraries to lib subdirectory within package
+        # This ensures $ORIGIN/lib RPATH can find them
+        print("Copying required libraries to package lib directory...")
+        lib_dir = correct_python_dir / "lib"
+        lib_dir.mkdir(exist_ok=True)
+        
         required_libs = [
             "liblanelet2_core.so",
             "liblanelet2_core.so.1.1.1", 
@@ -147,55 +153,39 @@ def build(setup_kwargs: Dict[str, Any]) -> None:
             for search_dir in search_dirs:
                 lib_path = search_dir / lib_name
                 if lib_path.exists():
-                    target_path = correct_python_dir / lib_name
-                    if target_path.exists():
-                        target_path.unlink()
-                    shutil.copy2(lib_path, target_path)
-                    print(f"copied {lib_path} to {target_path}")
-                    found = True
-                    break
+                    try:
+                        target_path = lib_dir / lib_name
+                        if target_path.exists():
+                            target_path.unlink()
+                        shutil.copy2(lib_path, target_path)
+                        print(f"copied {lib_path} to {target_path}")
+                        found = True
+                        break
+                    except (FileNotFoundError, PermissionError) as e:
+                        print(f"Failed to copy {lib_path}: {e}")
+                        continue
                     
             if not found:
                 print(f"Warning: Could not find {lib_name}")
                 
-        # Create all necessary symlinks and copies for versioned libraries
-        extension_dir = correct_python_dir
+        # Create all necessary symlinks and copies for versioned libraries in lib dir
         
         # Handle liblanelet2_core.so versioning
-        core_versioned = extension_dir / "liblanelet2_core.so.1.1.1"
+        core_versioned = lib_dir / "liblanelet2_core.so.1.1.1"
         if core_versioned.exists():
             # Create symlink for version 1
-            core_v1 = extension_dir / "liblanelet2_core.so.1"
-            if not core_v1.exists():
-                core_v1.symlink_to("liblanelet2_core.so.1.1.1")
-                print(f"created symlink {core_v1} -> liblanelet2_core.so.1.1.1")
+            core_v1 = lib_dir / "liblanelet2_core.so.1"
+            if core_v1.exists():
+                core_v1.unlink()
+            core_v1.symlink_to("liblanelet2_core.so.1.1.1")
+            print(f"created symlink {core_v1} -> liblanelet2_core.so.1.1.1")
                 
-            # Create unversioned copy
-            core_unversioned = extension_dir / "liblanelet2_core.so"
+            # Create unversioned symlink
+            core_unversioned = lib_dir / "liblanelet2_core.so"
             if core_unversioned.exists():
                 core_unversioned.unlink()
-            shutil.copy2(core_versioned, core_unversioned)
-            print(f"copied {core_versioned} to {core_unversioned}")
-        
-        # Copy all shared libraries from src_dir/lib to site-packages for RPATH
-        src_lib_dir = src_dir / "lib"
-        if src_lib_dir.exists():
-            copy_files(src_lib_dir, dest_dir, "lib*.so*")
-        
-        # Copy all shared libraries from Rosless-Lanelet2 build directories
-        rosless_build_dir = Path("Rosless-Lanelet2/build")
-        if rosless_build_dir.exists():
-            copy_files(rosless_build_dir, dest_dir, "**/lib*.so*")
-        
-        # Copy all shared libraries from autoware_lanelet2_extension build directory  
-        extension_build_dir = Path("autoware_lanelet2_extension/build")
-        if extension_build_dir.exists():
-            copy_files(extension_build_dir, dest_dir, "**/lib*.so*")
-        
-        # Copy from install directory
-        install_lib_dir = Path("install/lib")
-        if install_lib_dir.exists():
-            copy_files(install_lib_dir, dest_dir, "lib*.so*")
+            core_unversioned.symlink_to("liblanelet2_core.so.1.1.1")
+            print(f"created symlink {core_unversioned} -> liblanelet2_core.so.1.1.1")
             
         print("Copied extensions and shared libraries to Poetry venv")
     else:
@@ -210,15 +200,19 @@ def ensure_extensions_for_wheel():
     print("Ensuring extensions are in correct locations for wheel building...")
     
     # Copy autoware_lanelet2_extension_python extensions
-    extension_build_dir = Path("autoware_lanelet2_extension_python/build")
+    extension_build_dir = Path("_skbuild/linux-x86_64-3.10/cmake-build/autoware_lanelet2_extension_python")
     package_dir = Path("autoware_lanelet2_extension_python/autoware_lanelet2_extension_python")
     
     if extension_build_dir.exists():
         for so_file in extension_build_dir.glob("*.so"):
-            target = package_dir / so_file.name
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(so_file, target)
-            print(f"Copied {so_file} to {target}")
+            if so_file.exists() and so_file.is_file():
+                try:
+                    target = package_dir / so_file.name
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(so_file, target)
+                    print(f"Copied {so_file} to {target}")
+                except (FileNotFoundError, PermissionError) as e:
+                    print(f"Failed to copy {so_file}: {e}")
     
     # Copy lanelet2_python extensions
     lanelet2_package_dir = Path("lanelet2_python")
@@ -232,10 +226,121 @@ def ensure_extensions_for_wheel():
     ]:
         if build_path.exists():
             for so_file in build_path.glob("*.so"):
-                target = lanelet2_package_dir / so_file.name
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(so_file, target)
-                print(f"Copied {so_file} to {target}")
+                if so_file.exists() and so_file.is_file():
+                    try:
+                        target = lanelet2_package_dir / so_file.name
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(so_file, target)
+                        print(f"Copied {so_file} to {target}")
+                    except (FileNotFoundError, PermissionError) as e:
+                        print(f"Failed to copy {so_file}: {e}")
+    
+    # Ensure shared libraries are also copied to package lib directories for wheel building
+    print("Copying shared libraries to package directories for wheel...")
+    
+    # For autoware_lanelet2_extension_python
+    package_lib_dir = package_dir / "lib"
+    package_lib_dir.mkdir(exist_ok=True)
+    
+    required_libs = [
+        "liblanelet2_core.so",
+        "liblanelet2_core.so.1.1.1", 
+        "liblanelet2_io.so",
+        "liblanelet2_projection.so",
+        "liblanelet2_routing.so", 
+        "liblanelet2_traffic_rules.so",
+        "liblanelet2_validation.so",
+        "liblanelet2_matching.so",
+        "liblanelet2_extension_lib.so"
+    ]
+    
+    for lib_name in required_libs:
+        search_dirs = [
+            Path("install/lib"),
+            Path("Rosless-Lanelet2/build/lanelet2_core"),
+            Path("Rosless-Lanelet2/build/lanelet2_io"),
+            Path("Rosless-Lanelet2/build/lanelet2_projection"),
+            Path("Rosless-Lanelet2/build/lanelet2_routing"),
+            Path("Rosless-Lanelet2/build/lanelet2_traffic_rules"),
+            Path("Rosless-Lanelet2/build/lanelet2_validation"),
+            Path("Rosless-Lanelet2/build/lanelet2_matching"),
+            Path("autoware_lanelet2_extension/build")
+        ]
+        
+        for search_dir in search_dirs:
+            lib_path = search_dir / lib_name
+            if lib_path.exists():
+                try:
+                    target_path = package_lib_dir / lib_name
+                    if target_path.exists():
+                        target_path.unlink()
+                    shutil.copy2(lib_path, target_path)
+                    print(f"Copied {lib_path} to {target_path}")
+                    break
+                except (FileNotFoundError, PermissionError) as e:
+                    print(f"Failed to copy {lib_path}: {e}")
+                    continue
+    
+    # Create symlinks for liblanelet2_core.so versioning in package lib dir
+    core_versioned = package_lib_dir / "liblanelet2_core.so.1.1.1"
+    if core_versioned.exists():
+        core_v1 = package_lib_dir / "liblanelet2_core.so.1"
+        if core_v1.exists():
+            core_v1.unlink()
+        core_v1.symlink_to("liblanelet2_core.so.1.1.1")
+        
+        core_unversioned = package_lib_dir / "liblanelet2_core.so"
+        if core_unversioned.exists():
+            core_unversioned.unlink()
+        core_unversioned.symlink_to("liblanelet2_core.so.1.1.1")
+        
+        print(f"Created symlinks for liblanelet2_core.so in {package_lib_dir}")
+    
+    # For lanelet2_python package
+    lanelet2_lib_dir = lanelet2_package_dir / "lib"
+    lanelet2_lib_dir.mkdir(exist_ok=True)
+    
+    for lib_name in required_libs:
+        search_dirs = [
+            Path("install/lib"),
+            Path("Rosless-Lanelet2/build/lanelet2_core"),
+            Path("Rosless-Lanelet2/build/lanelet2_io"),
+            Path("Rosless-Lanelet2/build/lanelet2_projection"),
+            Path("Rosless-Lanelet2/build/lanelet2_routing"),
+            Path("Rosless-Lanelet2/build/lanelet2_traffic_rules"),
+            Path("Rosless-Lanelet2/build/lanelet2_validation"),
+            Path("Rosless-Lanelet2/build/lanelet2_matching"),
+            Path("autoware_lanelet2_extension/build")
+        ]
+        
+        for search_dir in search_dirs:
+            lib_path = search_dir / lib_name
+            if lib_path.exists():
+                try:
+                    target_path = lanelet2_lib_dir / lib_name
+                    if target_path.exists():
+                        target_path.unlink()
+                    shutil.copy2(lib_path, target_path)
+                    print(f"Copied {lib_path} to {target_path}")
+                    break
+                except (FileNotFoundError, PermissionError) as e:
+                    print(f"Failed to copy {lib_path}: {e}")
+                    continue
+    
+    # Create symlinks for liblanelet2_core.so versioning in lanelet2_python lib dir
+    core_versioned = lanelet2_lib_dir / "liblanelet2_core.so.1.1.1"
+    if core_versioned.exists():
+        core_v1 = lanelet2_lib_dir / "liblanelet2_core.so.1"
+        if core_v1.exists():
+            core_v1.unlink()
+        core_v1.symlink_to("liblanelet2_core.so.1.1.1")
+        
+        core_unversioned = lanelet2_lib_dir / "liblanelet2_core.so"
+        if core_unversioned.exists():
+            core_unversioned.unlink()
+        core_unversioned.symlink_to("liblanelet2_core.so.1.1.1")
+        
+        print(f"Created symlinks for liblanelet2_core.so in {lanelet2_lib_dir}")
 
 
 if __name__ == "__main__":

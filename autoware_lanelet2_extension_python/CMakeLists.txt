@@ -8,7 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-set(CMAKE_INSTALL_RPATH "$ORIGIN")
+set(CMAKE_INSTALL_RPATH "$ORIGIN;$ORIGIN/lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 set(PYTHON_INSTALL_DIR "lib/python3/dist-packages")
 
@@ -119,7 +119,9 @@ target_include_directories(_${PROJECT_NAME}_boost_python_utility
     ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
 set_target_properties(_${PROJECT_NAME}_boost_python_utility PROPERTIES
-  INSTALL_RPATH "$ORIGIN"
+  INSTALL_RPATH "$ORIGIN;$ORIGIN/lib"
+  BUILD_RPATH "$ORIGIN;$ORIGIN/lib"
+  SKIP_BUILD_RPATH FALSE
 )
 
 add_library(_${PROJECT_NAME}_boost_python_projection SHARED
@@ -142,7 +144,9 @@ target_include_directories(_${PROJECT_NAME}_boost_python_projection
     ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
 set_target_properties(_${PROJECT_NAME}_boost_python_projection PROPERTIES
-  INSTALL_RPATH "$ORIGIN"
+  INSTALL_RPATH "$ORIGIN;$ORIGIN/lib"
+  BUILD_RPATH "$ORIGIN;$ORIGIN/lib"
+  SKIP_BUILD_RPATH FALSE
 )
 
 add_library(_${PROJECT_NAME}_boost_python_regulatory_elements SHARED
@@ -156,7 +160,9 @@ target_link_libraries(_${PROJECT_NAME}_boost_python_regulatory_elements
   Lanelet2::Extension
 )
 set_target_properties(_${PROJECT_NAME}_boost_python_regulatory_elements PROPERTIES
-  INSTALL_RPATH "$ORIGIN"
+  INSTALL_RPATH "$ORIGIN;$ORIGIN/lib"
+  BUILD_RPATH "$ORIGIN;$ORIGIN/lib"
+  SKIP_BUILD_RPATH FALSE
 )
 
 install(TARGETS
@@ -172,4 +178,18 @@ install(DIRECTORY
   FILES_MATCHING
   PATTERN "*.py"
   PATTERN "__pycache__" EXCLUDE
+)
+
+# Install shared libraries alongside the Python module
+install(FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Rosless-Lanelet2/build/lanelet2_core/liblanelet2_core.so
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Rosless-Lanelet2/build/lanelet2_io/liblanelet2_io.so
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Rosless-Lanelet2/build/lanelet2_projection/liblanelet2_projection.so
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Rosless-Lanelet2/build/lanelet2_routing/liblanelet2_routing.so
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Rosless-Lanelet2/build/lanelet2_traffic_rules/liblanelet2_traffic_rules.so
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Rosless-Lanelet2/build/lanelet2_matching/liblanelet2_matching.so
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Rosless-Lanelet2/build/lanelet2_validation/liblanelet2_validation.so
+    ${CMAKE_CURRENT_SOURCE_DIR}/../autoware_lanelet2_extension/build/liblanelet2_extension_lib.so
+    DESTINATION "${PYTHON_INSTALL_DIR}/autoware_${PROJECT_NAME}/lib"
+    OPTIONAL
 )
