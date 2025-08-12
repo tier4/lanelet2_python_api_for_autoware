@@ -82,9 +82,24 @@ for lib_name in _required_libs:
         import warnings
         warnings.warn(f"Could not load {lib_name}, some functionality may not work", ImportWarning)
 
-import lanelet2
+# Try to import lanelet2 if available (for development environments)
+try:
+    import lanelet2
+except ImportError:
+    # lanelet2 not available, continue without it
+    pass
 
 # Import submodules to make them available
-from . import projection
-from . import regulatory_elements
-from . import utility
+try:
+    from . import projection
+    from . import regulatory_elements
+    from . import utility
+except ImportError as e:
+    # Expected when .so files are not available
+    import warnings
+    warnings.warn(
+        f"Failed to import C++ extensions: {e}. "
+        "This package is a stub version. For full functionality, "
+        "use 'poetry install' in development or install prebuilt wheels.",
+        UserWarning
+    )
