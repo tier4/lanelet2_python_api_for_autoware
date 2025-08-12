@@ -13,7 +13,7 @@ __all__ = ("build",)
 
 
 def get_poetry_venv_path() -> Path:
-    """Get the path to the Poetry virtual environment."""
+    """Get the path to the Poetry virtual environment or current Python environment."""
     try:
         result = subprocess.run(
             ["poetry", "env", "info", "--path"],
@@ -24,10 +24,10 @@ def get_poetry_venv_path() -> Path:
         )
         venv_path = result.stdout.strip()
         return Path(venv_path)
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(
-            f"Failed to get Poetry virtual environment: {e.stderr}"
-        ) from e
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        # Fall back to current Python environment if Poetry is not available
+        import sys
+        return Path(sys.prefix)
 
 
 def remove_files(target_dir: Path, pattern: str) -> None:
