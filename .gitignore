@@ -6,6 +6,7 @@ __pycache__
 .ipynb_checkpoints
 _skbuild
 *.so
+*.1
 
 # Python build artifacts
 dist/
