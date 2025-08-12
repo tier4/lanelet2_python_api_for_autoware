@@ -7,6 +7,7 @@
 #include <lanelet2_core/primitives/Point.h>
 #include <lanelet2_io/Io.h>
 #include <lanelet2_io/Configuration.h>
+#include <lanelet2_io/Projection.h>
 #include <lanelet2_projection/Mercator.h>
 #include <lanelet2_routing/RoutingGraph.h>
 #include <lanelet2_traffic_rules/TrafficRulesFactory.h>
@@ -41,14 +42,32 @@ PYBIND11_MODULE(_lanelet2_python_api, m) {
         .def("add", static_cast<void (lanelet::LaneletMap::*)(lanelet::Point3d)>(&lanelet::LaneletMap::add))
         .def("add", static_cast<void (lanelet::LaneletMap::*)(lanelet::LineString3d)>(&lanelet::LaneletMap::add));
 
-    // IO functions (using static_cast to resolve overloads)
+    // Origin class binding
+    py::class_<lanelet::Origin>(m, "Origin")
+        .def(py::init<double, double>())
+        .def_property_readonly("lat", &lanelet::Origin::lat)
+        .def_property_readonly("lon", &lanelet::Origin::lon);
+
+    // IO functions with correct signatures
+    // Load with Origin
+    m.def("load", static_cast<std::unique_ptr<lanelet::LaneletMap>(*)(const std::string&, const lanelet::Origin&, lanelet::ErrorMessages*, const lanelet::io::Configuration&)>(&lanelet::load), 
+          "Load lanelet map from file with origin",
+          py::arg("filename"), py::arg("origin"), py::arg("errors") = nullptr, py::arg("params") = lanelet::io::Configuration(),
+          py::return_value_policy::take_ownership);
+
+    // Load with Projector
     m.def("load", static_cast<std::unique_ptr<lanelet::LaneletMap>(*)(const std::string&, const lanelet::Projector&, lanelet::ErrorMessages*, const lanelet::io::Configuration&)>(&lanelet::load), 
-          "Load lanelet map from file",
+          "Load lanelet map from file with projector",
           py::arg("filename"), py::arg("projector"), py::arg("errors") = nullptr, py::arg("params") = lanelet::io::Configuration(),
           py::return_value_policy::take_ownership);
 
+    // Write functions
+    m.def("write", static_cast<void(*)(const std::string&, const lanelet::LaneletMap&, const lanelet::Origin&, lanelet::ErrorMessages*, const lanelet::io::Configuration&)>(&lanelet::write), 
+          "Write lanelet map to file with origin",
+          py::arg("filename"), py::arg("map"), py::arg("origin"), py::arg("errors") = nullptr, py::arg("params") = lanelet::io::Configuration());
+
     m.def("write", static_cast<void(*)(const std::string&, const lanelet::LaneletMap&, const lanelet::Projector&, lanelet::ErrorMessages*, const lanelet::io::Configuration&)>(&lanelet::write), 
-          "Write lanelet map to file",
+          "Write lanelet map to file with projector",
           py::arg("filename"), py::arg("map"), py::arg("projector"), py::arg("errors") = nullptr, py::arg("params") = lanelet::io::Configuration());
 
     // Add version info
