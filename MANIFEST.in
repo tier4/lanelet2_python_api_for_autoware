@@ -383,8 +383,8 @@ include setup.bash
 include setup.cfg
 include setup.py
 include pyproject.toml
-recursive-include autoware_lanelet2_extension_python *.py
-recursive-include lanelet2_python *.py
+recursive-include autoware_lanelet2_extension_python *.py *.so *.pyd
+recursive-include lanelet2_python *.py *.so *.pyd
 include tutorial_docs/odaiba_lanelet1017.png
 include tutorial_docs/odaiba_map_example.png
 exclude MANIFEST.in
