@@ -59,6 +59,8 @@ def copy_files(src_dir: Path, dest_dir: Path, pattern: str) -> None:
 def build(setup_kwargs: Dict[str, Any]) -> None:
     venv_path = get_poetry_venv_path()
     """Build C-extensions."""
+    
+    # Try to find pybind11 in Poetry environment first, then fall back to system
     pybind11_path = (
         venv_path
         / "lib"
@@ -69,127 +71,149 @@ def build(setup_kwargs: Dict[str, Any]) -> None:
         / "cmake"
         / "pybind11"
     )
+    
+    cmake_args = []
+    if pybind11_path.exists():
+        cmake_args.append("-Dpybind11_DIR=" + str(pybind11_path))
+    else:
+        # Try to find pybind11 in system site-packages
+        try:
+            import pybind11
+            system_pybind11_path = Path(pybind11.__file__).parent / "share" / "cmake" / "pybind11"
+            if system_pybind11_path.exists():
+                cmake_args.append("-Dpybind11_DIR=" + str(system_pybind11_path))
+        except ImportError:
+            pass
+    
     skbuild.setup(
         **setup_kwargs,
         script_args=["build_ext"],
-        cmake_args=["-Dpybind11_DIR=" + str(pybind11_path)],
+        cmake_args=cmake_args,
     )
 
-    src_dir = Path(skbuild.constants.CMAKE_INSTALL_DIR())
+    # Only perform Poetry-specific file operations if we're in a Poetry environment
+    try:
+        subprocess.run(["poetry", "env", "info"], check=True, capture_output=True)
+        is_poetry_env = True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        is_poetry_env = False
+    
+    if is_poetry_env:
+        src_dir = Path(skbuild.constants.CMAKE_INSTALL_DIR())
 
-    # Get the installation directory for the Poetry virtual environment
-    dest_dir = (
-        venv_path / "lib" / f"python{sysconfig.get_python_version()}" / "site-packages"
-    )
+        # Get the installation directory for the Poetry virtual environment
+        dest_dir = (
+            venv_path / "lib" / f"python{sysconfig.get_python_version()}" / "site-packages"
+        )
 
-    print(f"Copy from {src_dir} to {dest_dir}")
-    print(f"Source directory exists: {src_dir.exists()}")
-    if src_dir.exists():
-        for file in src_dir.glob("**/*.so"):
-            print(f"Found .so file: {file}")
+        print(f"Copy from {src_dir} to {dest_dir}")
+        print(f"Source directory exists: {src_dir.exists()}")
+        if src_dir.exists():
+            for file in src_dir.glob("**/*.so"):
+                print(f"Found .so file: {file}")
 
-    # Delete C-extensions copied in previous runs, just in case.
-    remove_files(dest_dir, "**/_lanelet2_extension_python_boost_python_*.so")
-    remove_files(dest_dir, "**/_lanelet2_python_api.*.so")
+        # Delete C-extensions copied in previous runs, just in case.
+        remove_files(dest_dir, "**/_lanelet2_extension_python_boost_python_*.so")
+        remove_files(dest_dir, "**/_lanelet2_python_api.*.so")
 
-    # Copy built C-extensions back to the Poetry virtual environment.
-    if src_dir.exists():
-        copy_files(src_dir, dest_dir, "**/*.pyd")
-        copy_files(src_dir, dest_dir, "**/*.so")
+        # Copy built C-extensions back to the Poetry virtual environment.
+        if src_dir.exists():
+            copy_files(src_dir, dest_dir, "**/*.pyd")
+            copy_files(src_dir, dest_dir, "**/*.so")
         
-        # Fix Python extension modules - move from nested structure to correct location
-        nested_python_dir = dest_dir / "lib" / "python3" / "dist-packages" / "autoware_lanelet2_extension_python"
-        correct_python_dir = dest_dir / "autoware_lanelet2_extension_python"
-        if nested_python_dir.exists():
-            print(f"Moving Python extensions from {nested_python_dir} to {correct_python_dir}")
-            # Ensure the correct directory exists
-            correct_python_dir.mkdir(parents=True, exist_ok=True)
-            for so_file in nested_python_dir.glob("*.so"):
-                target = correct_python_dir / so_file.name
-                if target.exists():
-                    target.unlink()  # Remove existing file
-                shutil.copy2(so_file, target)  # Use copy instead of rename
-                print(f"copied {so_file} to {target}")
-            # Clean up nested directory structure
-            try:
-                shutil.rmtree(dest_dir / "lib")
-            except OSError:
-                pass  # Directory not empty or doesn't exist
-                
-        # Copy all required shared libraries to lib subdirectory within package
-        # This ensures $ORIGIN/lib RPATH can find them
-        print("Copying required libraries to package lib directory...")
-        lib_dir = correct_python_dir / "lib"
-        lib_dir.mkdir(exist_ok=True)
-        
-        required_libs = [
-            "liblanelet2_core.so",
-            "liblanelet2_core.so.1.1.1", 
-            "liblanelet2_io.so",
-            "liblanelet2_projection.so",
-            "liblanelet2_routing.so", 
-            "liblanelet2_traffic_rules.so",
-            "liblanelet2_validation.so",
-            "liblanelet2_matching.so",
-            "liblanelet2_extension_lib.so"
-        ]
-        
-        for lib_name in required_libs:
-            # Try to find the library in various locations
-            found = False
-            search_dirs = [
-                src_dir / "lib",
-                Path("install/lib"),
-                Path("Rosless-Lanelet2/build/lanelet2_core"),
-                Path("Rosless-Lanelet2/build/lanelet2_io"),
-                Path("Rosless-Lanelet2/build/lanelet2_projection"),
-                Path("Rosless-Lanelet2/build/lanelet2_routing"),
-                Path("Rosless-Lanelet2/build/lanelet2_traffic_rules"),
-                Path("Rosless-Lanelet2/build/lanelet2_validation"),
-                Path("Rosless-Lanelet2/build/lanelet2_matching"),
-                Path("autoware_lanelet2_extension/build")
+            # Fix Python extension modules - move from nested structure to correct location
+            nested_python_dir = dest_dir / "lib" / "python3" / "dist-packages" / "autoware_lanelet2_extension_python"
+            correct_python_dir = dest_dir / "autoware_lanelet2_extension_python"
+            if nested_python_dir.exists():
+                print(f"Moving Python extensions from {nested_python_dir} to {correct_python_dir}")
+                # Ensure the correct directory exists
+                correct_python_dir.mkdir(parents=True, exist_ok=True)
+                for so_file in nested_python_dir.glob("*.so"):
+                    target = correct_python_dir / so_file.name
+                    if target.exists():
+                        target.unlink()  # Remove existing file
+                    shutil.copy2(so_file, target)  # Use copy instead of rename
+                    print(f"copied {so_file} to {target}")
+                # Clean up nested directory structure
+                try:
+                    shutil.rmtree(dest_dir / "lib")
+                except OSError:
+                    pass  # Directory not empty or doesn't exist
+                    
+            # Copy all required shared libraries to lib subdirectory within package
+            # This ensures $ORIGIN/lib RPATH can find them
+            print("Copying required libraries to package lib directory...")
+            lib_dir = correct_python_dir / "lib"
+            lib_dir.mkdir(exist_ok=True)
+            
+            required_libs = [
+                "liblanelet2_core.so",
+                "liblanelet2_core.so.1.1.1", 
+                "liblanelet2_io.so",
+                "liblanelet2_projection.so",
+                "liblanelet2_routing.so", 
+                "liblanelet2_traffic_rules.so",
+                "liblanelet2_validation.so",
+                "liblanelet2_matching.so",
+                "liblanelet2_extension_lib.so"
             ]
             
-            for search_dir in search_dirs:
-                lib_path = search_dir / lib_name
-                if lib_path.exists():
-                    try:
-                        target_path = lib_dir / lib_name
-                        if target_path.exists():
-                            target_path.unlink()
-                        shutil.copy2(lib_path, target_path)
-                        print(f"copied {lib_path} to {target_path}")
-                        found = True
-                        break
-                    except (FileNotFoundError, PermissionError) as e:
-                        print(f"Failed to copy {lib_path}: {e}")
-                        continue
+            for lib_name in required_libs:
+                # Try to find the library in various locations
+                found = False
+                search_dirs = [
+                    src_dir / "lib",
+                    Path("install/lib"),
+                    Path("Rosless-Lanelet2/build/lanelet2_core"),
+                    Path("Rosless-Lanelet2/build/lanelet2_io"),
+                    Path("Rosless-Lanelet2/build/lanelet2_projection"),
+                    Path("Rosless-Lanelet2/build/lanelet2_routing"),
+                    Path("Rosless-Lanelet2/build/lanelet2_traffic_rules"),
+                    Path("Rosless-Lanelet2/build/lanelet2_validation"),
+                    Path("Rosless-Lanelet2/build/lanelet2_matching"),
+                    Path("autoware_lanelet2_extension/build")
+                ]
+                
+                for search_dir in search_dirs:
+                    lib_path = search_dir / lib_name
+                    if lib_path.exists():
+                        try:
+                            target_path = lib_dir / lib_name
+                            if target_path.exists():
+                                target_path.unlink()
+                            shutil.copy2(lib_path, target_path)
+                            print(f"copied {lib_path} to {target_path}")
+                            found = True
+                            break
+                        except (FileNotFoundError, PermissionError) as e:
+                            print(f"Failed to copy {lib_path}: {e}")
+                            continue
+                        
+                if not found:
+                    print(f"Warning: Could not find {lib_name}")
                     
-            if not found:
-                print(f"Warning: Could not find {lib_name}")
-                
-        # Create all necessary symlinks and copies for versioned libraries in lib dir
-        
-        # Handle liblanelet2_core.so versioning
-        core_versioned = lib_dir / "liblanelet2_core.so.1.1.1"
-        if core_versioned.exists():
-            # Create symlink for version 1
-            core_v1 = lib_dir / "liblanelet2_core.so.1"
-            if core_v1.exists():
-                core_v1.unlink()
-            core_v1.symlink_to("liblanelet2_core.so.1.1.1")
-            print(f"created symlink {core_v1} -> liblanelet2_core.so.1.1.1")
-                
-            # Create unversioned symlink
-            core_unversioned = lib_dir / "liblanelet2_core.so"
-            if core_unversioned.exists():
-                core_unversioned.unlink()
-            core_unversioned.symlink_to("liblanelet2_core.so.1.1.1")
-            print(f"created symlink {core_unversioned} -> liblanelet2_core.so.1.1.1")
+            # Create all necessary symlinks and copies for versioned libraries in lib dir
             
-        print("Copied extensions and shared libraries to Poetry venv")
-    else:
-        print(f"Warning: Source directory {src_dir} does not exist")
+            # Handle liblanelet2_core.so versioning
+            core_versioned = lib_dir / "liblanelet2_core.so.1.1.1"
+            if core_versioned.exists():
+                # Create symlink for version 1
+                core_v1 = lib_dir / "liblanelet2_core.so.1"
+                if core_v1.exists():
+                    core_v1.unlink()
+                core_v1.symlink_to("liblanelet2_core.so.1.1.1")
+                print(f"created symlink {core_v1} -> liblanelet2_core.so.1.1.1")
+                    
+                # Create unversioned symlink
+                core_unversioned = lib_dir / "liblanelet2_core.so"
+                if core_unversioned.exists():
+                    core_unversioned.unlink()
+                core_unversioned.symlink_to("liblanelet2_core.so.1.1.1")
+                print(f"created symlink {core_unversioned} -> liblanelet2_core.so.1.1.1")
+                
+            print("Copied extensions and shared libraries to Poetry venv")
+        else:
+            print(f"Warning: Source directory {src_dir} does not exist")
     
     # Always ensure extensions are in the right place for wheel building
     ensure_extensions_for_wheel()
