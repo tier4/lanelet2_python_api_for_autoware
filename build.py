@@ -214,9 +214,8 @@ def build(setup_kwargs: Dict[str, Any]) -> None:
             print("Copied extensions and shared libraries to Poetry venv")
         else:
             print(f"Warning: Source directory {src_dir} does not exist")
-    
-    # Always ensure extensions are in the right place for wheel building
-    ensure_extensions_for_wheel()
+    else:
+        print("Not in Poetry environment - skipping Poetry-specific setup")
 
 
 def ensure_extensions_for_wheel():
