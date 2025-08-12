@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=68.0.0", "wheel", "numpy>=1.21.0"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core>=1.0.0", "scikit-build", "cmake", "ninja", "pybind11"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "autoware-lanelet2-extension-python"
