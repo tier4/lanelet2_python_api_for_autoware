@@ -13,18 +13,42 @@ class MGRSProjector:
     Pure Python implementation for basic functionality.
     """
     
-    def __init__(self, mgrs_grid: str):
+    def __init__(self, origin_or_grid):
         """
-        Initialize MGRS projector with grid specification.
+        Initialize MGRS projector with origin or grid specification.
         
         Args:
-            mgrs_grid: MGRS grid string (e.g., "54SUE")
+            origin_or_grid: Either a lanelet2.io.Origin object or MGRS grid string (e.g., "54SUE")
         """
-        self.mgrs_grid = mgrs_grid
+        # Handle both Origin objects and string inputs for compatibility
+        if hasattr(origin_or_grid, 'lat') and hasattr(origin_or_grid, 'lon'):
+            # This is an Origin object - convert to MGRS grid
+            lat = origin_or_grid.lat
+            lon = origin_or_grid.lon
+            self.origin_lat = lat
+            self.origin_lon = lon
+            # Convert lat/lon to MGRS grid (simplified)
+            zone = int((lon + 180) / 6) + 1
+            if zone > 60:
+                zone = 60
+            self.mgrs_grid = f"{zone:02d}SUE"  # Simplified MGRS grid
+        else:
+            # This is a string grid specification
+            self.mgrs_grid = str(origin_or_grid)
+            # Default origin for string-based initialization
+            self.origin_lat = 0.0
+            self.origin_lon = 0.0
+            
         # Parse MGRS grid for basic info
-        self.zone = int(mgrs_grid[:2])
-        self.band = mgrs_grid[2]
-        self.square = mgrs_grid[3:5] if len(mgrs_grid) >= 5 else ""
+        if len(self.mgrs_grid) >= 2 and self.mgrs_grid[:2].isdigit():
+            self.zone = int(self.mgrs_grid[:2])
+            self.band = self.mgrs_grid[2] if len(self.mgrs_grid) > 2 else 'S'
+            self.square = self.mgrs_grid[3:5] if len(self.mgrs_grid) >= 5 else "UE"
+        else:
+            # Fallback for invalid grid strings
+            self.zone = 1
+            self.band = 'S'
+            self.square = "UE"
         
     def forward(self, lat: float, lon: float) -> Tuple[float, float]:
         """
@@ -65,16 +89,23 @@ class TransverseMercatorProjector:
     Pure Python implementation for basic functionality.
     """
     
-    def __init__(self, origin_lat: float, origin_lon: float):
+    def __init__(self, origin_or_lat, origin_lon=None):
         """
         Initialize Transverse Mercator projector.
         
         Args:
-            origin_lat: Origin latitude in degrees
-            origin_lon: Origin longitude in degrees
+            origin_or_lat: Either a lanelet2.io.Origin object or latitude in degrees
+            origin_lon: Longitude in degrees (if first arg is latitude)
         """
-        self.origin_lat = math.radians(origin_lat)
-        self.origin_lon = math.radians(origin_lon)
+        # Handle both Origin objects and separate lat/lon arguments
+        if hasattr(origin_or_lat, 'lat') and hasattr(origin_or_lat, 'lon'):
+            # This is an Origin object
+            self.origin_lat = math.radians(origin_or_lat.lat)
+            self.origin_lon = math.radians(origin_or_lat.lon)
+        else:
+            # These are separate lat/lon arguments
+            self.origin_lat = math.radians(float(origin_or_lat))
+            self.origin_lon = math.radians(float(origin_lon))
         
     def forward(self, lat: float, lon: float) -> Tuple[float, float]:
         """

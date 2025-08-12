@@ -109,7 +109,55 @@ class LaneletMap:
         """Add a polygon to the map."""
         self.polygons.append(polygon)
 
-# Basic IO functions
+@dataclass
+class Origin:
+    """Origin point for coordinate transformations."""
+    lat: float = 0.0
+    lon: float = 0.0
+    alt: float = 0.0
+
+# Create io module structure for compatibility
+class IOModule:
+    """IO module with lanelet2 compatibility."""
+    
+    @staticmethod
+    def Origin(lat: float, lon: float, alt: float = 0.0) -> Origin:
+        """Create an Origin object."""
+        return Origin(lat, lon, alt)
+    
+    @staticmethod
+    def load(filename: str, projector=None) -> LaneletMap:
+        """
+        Load a lanelet map from file (stub implementation).
+        
+        Args:
+            filename: Path to the map file
+            projector: Coordinate projector (optional)
+            
+        Returns:
+            Empty LaneletMap (real implementation would parse the file)
+        """
+        print(f"Loading map from {filename} (stub implementation)")
+        if projector:
+            print(f"Using projector: {type(projector).__name__}")
+        return LaneletMap()
+
+    @staticmethod
+    def save(lanelet_map: LaneletMap, filename: str, projector=None):
+        """
+        Save a lanelet map to file (stub implementation).
+        
+        Args:
+            lanelet_map: Map to save
+            filename: Output file path
+            projector: Coordinate projector (optional)
+        """
+        print(f"Saving map to {filename} (stub implementation)")
+
+# Create the io module
+io = IOModule()
+
+# Basic IO functions (backward compatibility)
 def load_map(filename: str) -> LaneletMap:
     """
     Load a lanelet map from file (stub implementation).
@@ -120,8 +168,7 @@ def load_map(filename: str) -> LaneletMap:
     Returns:
         Empty LaneletMap (real implementation would parse the file)
     """
-    print(f"Loading map from {filename} (stub implementation)")
-    return LaneletMap()
+    return io.load(filename)
 
 def save_map(lanelet_map: LaneletMap, filename: str):
     """
@@ -131,7 +178,7 @@ def save_map(lanelet_map: LaneletMap, filename: str):
         lanelet_map: Map to save
         filename: Output file path
     """
-    print(f"Saving map to {filename} (stub implementation)")
+    io.save(lanelet_map, filename)
 
 __all__ = [
     "Point3d",
@@ -139,6 +186,8 @@ __all__ = [
     "Polygon3d",
     "Lanelet",
     "LaneletMap",
+    "Origin",
+    "io",
     "load_map",
     "save_map"
 ]
