@@ -1,21 +1,25 @@
-"""Setup script for autoware-lanelet2-extension-python."""
+"""
+Simple setup.py for pip install compatibility.
+This package requires prebuilt Lanelet2 libraries and is intended for development use.
+For production, use poetry build or pre-built wheels.
+"""
 
-import os
-import subprocess
-import sys
-from pathlib import Path
-
+import warnings
 from setuptools import setup, find_packages
 
-
-# Note: The actual build is handled by Poetry's build.py script when using poetry build
-# This setup.py is primarily for compatibility with pip install from git repositories
-
+# Warn users about limitations
+warnings.warn(
+    "This package requires prebuilt Lanelet2 libraries. "
+    "For full functionality, use 'poetry install' in the development environment "
+    "or install from pre-built wheels.",
+    UserWarning
+)
 
 setup(
     name="autoware-lanelet2-extension-python",
     version="0.1.0",
-    description="Python bindings for Lanelet2 with Autoware extension",
+    description="Python bindings for Lanelet2 with Autoware extension (development version)",
+    long_description="This is a development version that requires prebuilt libraries. Use poetry for full build.",
     author="Masaya Kataoka",
     author_email="ms.kataoka@gmail.com",
     packages=find_packages(include=['autoware_lanelet2_extension_python*', 'lanelet2_python*']),
@@ -25,8 +29,16 @@ setup(
     ],
     include_package_data=True,
     package_data={
-        'autoware_lanelet2_extension_python': ['*.so', '*.pyd'],
-        'lanelet2_python': ['*.so', '*.pyd'],
+        'autoware_lanelet2_extension_python': ['*.so', '*.pyd', '**/*.so', '**/*.pyd'],
+        'lanelet2_python': ['*.so', '*.pyd', '**/*.so', '**/*.pyd'],
     },
     zip_safe=False,
+    classifiers=[
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: Apache Software License",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+    ],
 )
