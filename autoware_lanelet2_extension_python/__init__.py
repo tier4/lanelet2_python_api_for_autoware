@@ -1,7 +1,44 @@
+"""
+Python API for lanelet2_extension for Autoware
+"""
+
 import os
 import sys
 import ctypes
 from pathlib import Path
+
+def _check_compiled_extensions():
+    """Check if compiled extensions are available."""
+    current_dir = Path(__file__).parent
+    required_extensions = [
+        "_lanelet2_extension_python_boost_python_projection.so",
+        "_lanelet2_extension_python_boost_python_regulatory_elements.so", 
+        "_lanelet2_extension_python_boost_python_utility.so"
+    ]
+    
+    missing_extensions = []
+    for ext in required_extensions:
+        if not (current_dir / ext).exists():
+            missing_extensions.append(ext)
+    
+    if missing_extensions:
+        error_msg = f"""
+Missing compiled extensions: {missing_extensions}
+
+This package requires prebuilt Lanelet2 libraries and compiled C++ extensions.
+
+For development, please:
+1. Use 'poetry install' in the development environment, OR
+2. Build the package using 'poetry build' and install the resulting wheel
+
+For pip install from git, the package must be built with all dependencies.
+Current directory: {current_dir}
+Available files: {list(current_dir.glob('*'))}
+"""
+        raise ImportError(error_msg)
+
+# Check for compiled extensions first
+_check_compiled_extensions()
 
 # Pre-load required shared libraries before importing any C++ modules
 _package_dir = Path(__file__).parent
