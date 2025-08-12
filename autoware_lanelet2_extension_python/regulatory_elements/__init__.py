@@ -1,106 +1,143 @@
 """
-Regulatory elements for Autoware's lanelet2 extension.
-
-This module provides Python bindings for Autoware's custom regulatory elements
-that extend the lanelet2 map representation capabilities.
+Regulatory elements for Lanelet2 with Autoware extension
+Pure Python implementation
 """
 
-import autoware_lanelet2_extension_python._lanelet2_extension_python_boost_python_regulatory_elements as _regulatory_elements_cpp
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
 
-AutowareTrafficLight = _regulatory_elements_cpp.AutowareTrafficLight
-"""Autoware traffic light regulatory element.
+@dataclass
+class AutowareTrafficLight:
+    """
+    Autoware traffic light regulatory element.
+    """
+    id: int = 0
+    type: str = "traffic_light"
+    subtype: str = "autoware"
+    attributes: Dict[str, Any] = None
     
-This class represents a traffic light in Autoware with additional
-capabilities for light bulb information.
+    def __post_init__(self):
+        if self.attributes is None:
+            self.attributes = {}
 
-Methods:
-    lightBulbs(): Get the light bulbs LineString3d
-    addLightBulbs(light_bulbs: LineString3d): Add light bulbs
-    removeLightBulbs(light_bulbs: LineString3d): Remove light bulbs
-"""
-Crosswalk = _regulatory_elements_cpp.Crosswalk
-"""Autoware crosswalk regulatory element.
+@dataclass
+class BusStopArea:
+    """
+    Bus stop area regulatory element.
+    """
+    id: int = 0
+    type: str = "bus_stop"
+    name: str = ""
+    attributes: Dict[str, Any] = None
+    
+    def __post_init__(self):
+        if self.attributes is None:
+            self.attributes = {}
 
-This class represents a crosswalk area in Autoware.
+@dataclass 
+class Crosswalk:
+    """
+    Crosswalk regulatory element.
+    """
+    id: int = 0
+    type: str = "crosswalk"
+    subtype: str = "zebra"
+    attributes: Dict[str, Any] = None
+    
+    def __post_init__(self):
+        if self.attributes is None:
+            self.attributes = {}
 
-Methods:
-    crosswalkAreas(): Get the crosswalk areas (list of Polygon3d)
-    stopLines(): Get the stop lines (list of LineString3d)
-    crosswalkLanelet(): Get the crosswalk lanelet (Lanelet)
-    addCrosswalkArea(area: Polygon3d): Add a crosswalk area
-    removeCrosswalkArea(area: Polygon3d): Remove a crosswalk area
-"""
-DetectionArea = _regulatory_elements_cpp.DetectionArea
-"""Detection area regulatory element.
+@dataclass
+class DetectionArea:
+    """
+    Detection area regulatory element.
+    """
+    id: int = 0
+    type: str = "detection_area"
+    subtype: str = ""
+    attributes: Dict[str, Any] = None
+    
+    def __post_init__(self):
+        if self.attributes is None:
+            self.attributes = {}
 
-This class represents an area where detection of objects is important.
+@dataclass
+class NoParkingArea:
+    """
+    No parking area regulatory element.
+    """
+    id: int = 0
+    type: str = "no_parking"
+    attributes: Dict[str, Any] = None
+    
+    def __post_init__(self):
+        if self.attributes is None:
+            self.attributes = {}
 
-Methods:
-    detectionAreas(): Get the detection areas (list of Polygon3d)
-    addDetectionArea(area: Polygon3d): Add a detection area
-    removeDetectionArea(area: Polygon3d): Remove a detection area
-    stopLine(): Get the stop line (Optional[LineString3d])
-    setStopLine(line: LineString3d): Set the stop line
-    removeStopLine(): Remove the stop line
-"""
-NoParkingArea = _regulatory_elements_cpp.NoParkingArea
-"""No parking area regulatory element.
+@dataclass
+class NoStoppingArea:
+    """
+    No stopping area regulatory element.
+    """
+    id: int = 0
+    type: str = "no_stopping"
+    attributes: Dict[str, Any] = None
+    
+    def __post_init__(self):
+        if self.attributes is None:
+            self.attributes = {}
 
-This class represents an area where parking is prohibited.
+@dataclass
+class RoadMarking:
+    """
+    Road marking regulatory element.
+    """
+    id: int = 0
+    type: str = "road_marking"
+    subtype: str = ""
+    color: str = "white"
+    attributes: Dict[str, Any] = None
+    
+    def __post_init__(self):
+        if self.attributes is None:
+            self.attributes = {}
 
-Methods:
-    noParkingAreas(): Get the no parking areas (list of Polygon3d)
-    addNoParkingArea(area: Polygon3d): Add a no parking area
-    removeNoParkingArea(area: Polygon3d): Remove a no parking area
-"""
+@dataclass
+class SpeedBump:
+    """
+    Speed bump regulatory element.
+    """
+    id: int = 0
+    type: str = "speed_bump"
+    height: float = 0.1
+    attributes: Dict[str, Any] = None
+    
+    def __post_init__(self):
+        if self.attributes is None:
+            self.attributes = {}
 
-NoStoppingArea = _regulatory_elements_cpp.NoStoppingArea
-"""No stopping area regulatory element.
+@dataclass
+class VirtualTrafficLight:
+    """
+    Virtual traffic light regulatory element.
+    """
+    id: int = 0
+    type: str = "virtual_traffic_light"
+    attributes: Dict[str, Any] = None
+    
+    def __post_init__(self):
+        if self.attributes is None:
+            self.attributes = {}
 
-This class represents an area where stopping is prohibited.
-
-Methods:
-    noStoppingAreas(): Get the no stopping areas (list of Polygon3d)
-    addNoStoppingArea(area: Polygon3d): Add a no stopping area
-    removeNoStoppingArea(area: Polygon3d): Remove a no stopping area
-    stopLine(): Get the stop line (Optional[LineString3d])
-    setStopLine(line: LineString3d): Set the stop line
-    removeStopLine(): Remove the stop line
-"""
-
-
-
-
-RoadMarking = _regulatory_elements_cpp.RoadMarking
-"""Road marking regulatory element.
-
-This class represents a road marking in Autoware.
-
-Methods:
-    roadMarking(): Get the road marking (LineString3d)
-    setRoadMarking(marking: LineString3d): Set the road marking
-    removeRoadMarking(): Remove the road marking
-"""
-
-SpeedBump = _regulatory_elements_cpp.SpeedBump
-"""Speed bump regulatory element.
-
-This class represents a speed bump in Autoware.
-
-Methods:
-    speedBump(): Get the speed bump (LineString3d)
-    addSpeedBump(bump: LineString3d): Add a speed bump
-    removeSpeedBump(bump: LineString3d): Remove a speed bump
-"""
-
-VirtualTrafficLight = _regulatory_elements_cpp.VirtualTrafficLight
-"""Virtual traffic light regulatory element.
-
-This class represents a virtual traffic light in Autoware.
-
-Methods:
-    getVirtualTrafficLight(): Get the virtual traffic light (Point3d)
-    getStopLine(): Get the stop line (LineString3d)
-    getStartLine(): Get the start line (LineString3d)
-    getEndLines(): Get the end lines (list of LineString3d)
-"""
+__all__ = [
+    "AutowareTrafficLight",
+    "BusStopArea", 
+    "Crosswalk",
+    "DetectionArea",
+    "NoParkingArea",
+    "NoStoppingArea",
+    "RoadMarking",
+    "SpeedBump",
+    "VirtualTrafficLight"
+]

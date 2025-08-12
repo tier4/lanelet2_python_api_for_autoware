@@ -2,64 +2,35 @@
 requires = ["setuptools>=68.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.poetry]
+[tool.setuptools]
+packages = ["autoware_lanelet2_extension_python", "lanelet2_python"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"autoware_lanelet2_extension_python" = ["**/*.py"]
+"lanelet2_python" = ["**/*.py"]
+
+[project]
 name = "autoware-lanelet2-extension-python"
 version = "0.1.0"
-description = "Python bindings for Lanelet2 with Autoware extension"
-authors = ["Masaya Kataoka <ms.kataoka@gmail.com>"]
+description = "Python-only bindings for Lanelet2 with Autoware extension"
+authors = [{name = "Masaya Kataoka", email = "ms.kataoka@gmail.com"}]
 readme = "readme.md"
-license = "Apache-2.0"
-packages = [
-    {include = "autoware_lanelet2_extension_python"},
-    {include = "lanelet2_python"}
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.21.0",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering",
 ]
 
-# Include source files for C extensions in sdist and built extensions in wheel
-include = [
-    # Python package files - always include
-    "autoware_lanelet2_extension_python/**/*.py",
-    "lanelet2_python/**/*.py",
-    # C extensions - always include
-    "autoware_lanelet2_extension_python/**/*.so",
-    "autoware_lanelet2_extension_python/**/*.pyd", 
-    "lanelet2_python/**/*.so",
-    "lanelet2_python/**/*.pyd",
-    
-    # Source files for C extensions must be included in the source distribution
-    { path = "CMakeLists.txt", format = "sdist" },
-    { path = "setup.py", format = "sdist" },
-    { path = "setup.cfg", format = "sdist" },
-    { path = "build.py", format = "sdist" },
-    { path = "Rosless-Lanelet2/**/*.cpp", format = "sdist" },
-    { path = "Rosless-Lanelet2/**/*.h", format = "sdist" },
-    { path = "Rosless-Lanelet2/**/*.hpp", format = "sdist" },
-    { path = "Rosless-Lanelet2/**/CMakeLists.txt", format = "sdist" },
-    { path = "autoware_lanelet2_extension/**/*.cpp", format = "sdist" },
-    { path = "autoware_lanelet2_extension/**/*.hpp", format = "sdist" },
-    { path = "autoware_lanelet2_extension/**/CMakeLists.txt", format = "sdist" },
-    { path = "autoware_lanelet2_extension_python/**/*.cpp", format = "sdist" },
-    { path = "autoware_lanelet2_extension_python/**/CMakeLists.txt", format = "sdist" },
-    { path = "lanelet2_python/**/*.cpp", format = "sdist" },
-    { path = "lanelet2_python/**/CMakeLists.txt", format = "sdist" },
-    
-    # Built C extensions must be included in the wheel distribution
-    { path = "autoware_lanelet2_extension_python/**/*.pyd", format = "wheel" },
-    { path = "autoware_lanelet2_extension_python/**/*.so", format = "wheel" },
-    { path = "lanelet2_python/**/*.pyd", format = "wheel" },
-    { path = "lanelet2_python/**/*.so", format = "wheel" },
-]
-
-[tool.poetry.build]
-generate-setup-file = false
-script = "build.py"
-
-[tool.poetry.dependencies]
-python = "^3.10"
-numpy = "^1.21.0"
-setuptools = "^68.0.0"
-wheel = "^0.40.0"
-scikit-build = "^0.17.0"
-cmake = "^3.25.0"
-ninja = "^1.11.0"
-pybind11 = "^2.10.0"
-pytest = "^7.0.0"
+[project.urls]
+Homepage = "https://github.com/tier4/lanelet2_python_api_for_autoware"
+Repository = "https://github.com/tier4/lanelet2_python_api_for_autoware.git"
