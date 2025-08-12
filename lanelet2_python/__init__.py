@@ -143,10 +143,5 @@ __all__ = [
     "save_map"
 ]
 
-# Backwards compatibility - try to import C++ version if available
-try:
-    from ._lanelet2_python_api import *
-    print("Using C++ implementation for enhanced performance")
-except ImportError:
-    print("Using pure Python implementation")
-    pass
+# Note: C++ implementation available in development environment
+# Using pure Python implementation for pip install compatibility
