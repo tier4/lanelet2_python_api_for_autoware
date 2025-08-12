@@ -5,6 +5,7 @@ install
 __pycache__
 .ipynb_checkpoints
 _skbuild
+*.so
 
 # Python build artifacts
 dist/

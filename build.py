@@ -200,6 +200,42 @@ def build(setup_kwargs: Dict[str, Any]) -> None:
         print("Copied extensions and shared libraries to Poetry venv")
     else:
         print(f"Warning: Source directory {src_dir} does not exist")
+    
+    # Always ensure extensions are in the right place for wheel building
+    ensure_extensions_for_wheel()
+
+
+def ensure_extensions_for_wheel():
+    """Ensure C extensions are copied to package directories for wheel building."""
+    print("Ensuring extensions are in correct locations for wheel building...")
+    
+    # Copy autoware_lanelet2_extension_python extensions
+    extension_build_dir = Path("autoware_lanelet2_extension_python/build")
+    package_dir = Path("autoware_lanelet2_extension_python/autoware_lanelet2_extension_python")
+    
+    if extension_build_dir.exists():
+        for so_file in extension_build_dir.glob("*.so"):
+            target = package_dir / so_file.name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(so_file, target)
+            print(f"Copied {so_file} to {target}")
+    
+    # Copy lanelet2_python extensions
+    lanelet2_package_dir = Path("lanelet2_python")
+    
+    # Look for built lanelet2_python extensions
+    for build_path in [
+        Path("_skbuild/linux-x86_64-3.10/cmake-install/lanelet2_python"),
+        Path("_skbuild/linux-x86_64-3.10/cmake-build/lanelet2_python"),
+        Path("build/lanelet2_python"),
+        Path("Rosless-Lanelet2/build/lanelet2_python"),
+    ]:
+        if build_path.exists():
+            for so_file in build_path.glob("*.so"):
+                target = lanelet2_package_dir / so_file.name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(so_file, target)
+                print(f"Copied {so_file} to {target}")
 
 
 if __name__ == "__main__":

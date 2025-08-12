@@ -15,9 +15,14 @@ packages = [
 
 # Include source files for C extensions in sdist and built extensions in wheel
 include = [
-    # Python package files
-    { path = "autoware_lanelet2_extension_python/**/*.py" },
-    { path = "lanelet2_python/**/*.py" },
+    # Python package files - always include
+    "autoware_lanelet2_extension_python/**/*.py",
+    "lanelet2_python/**/*.py",
+    # C extensions - always include
+    "autoware_lanelet2_extension_python/**/*.so",
+    "autoware_lanelet2_extension_python/**/*.pyd", 
+    "lanelet2_python/**/*.so",
+    "lanelet2_python/**/*.pyd",
     
     # Source files for C extensions must be included in the source distribution
     { path = "CMakeLists.txt", format = "sdist" },
