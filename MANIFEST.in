@@ -1,0 +1,17 @@
+include README_POETRY.md
+include readme.md
+include setup.py
+include build.py
+include pre-install.sh
+include setup.bash
+recursive-include Rosless-Lanelet2 *
+recursive-include autoware_lanelet2_extension *
+recursive-include autoware_lanelet2_extension_python *
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude build/
+global-exclude build_cpp/
+global-exclude build_poetry/
+global-exclude install/
+global-exclude dist/
+global-exclude *.egg-info/

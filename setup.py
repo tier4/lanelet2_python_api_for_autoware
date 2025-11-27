@@ -47,11 +47,11 @@ class BuildPyCommand(build_py):
     """Custom build command that builds C++ extensions first."""
     
     def run(self):
-        # First run the parent class's run method to set up directories
-        super().run()
-        
-        # Then build C++ extensions
+        # First build C++ extensions
         build_cpp_extensions()
+        
+        # Then run the parent class's run method to set up directories
+        super().run()
         
         # Copy built extensions to package directory
         root_dir = Path(__file__).parent.absolute()
@@ -101,6 +101,41 @@ class InstallCommand(install):
         super().run()
 
 
+# Determine packages and package directories
+def get_packages_and_dirs():
+    """Get packages and package directories based on what exists."""
+    packages = [
+        "autoware_lanelet2_extension_python",
+        "autoware_lanelet2_extension_python.impl",
+        "autoware_lanelet2_extension_python.projection",
+        "autoware_lanelet2_extension_python.regulatory_elements",
+        "autoware_lanelet2_extension_python.utility",
+    ]
+    
+    package_dir = {
+        "autoware_lanelet2_extension_python": "autoware_lanelet2_extension_python/autoware_lanelet2_extension_python",
+    }
+    
+    package_data = {
+        "autoware_lanelet2_extension_python": ["*.so"],
+    }
+    
+    # Check if lanelet2 package exists (after build)
+    lanelet2_path = Path("install/lib/python3/dist-packages/lanelet2")
+    if lanelet2_path.exists() or Path("lanelet2").exists():
+        packages.append("lanelet2")
+        # Use local copy if it exists, otherwise use install path
+        if Path("lanelet2").exists():
+            package_dir["lanelet2"] = "lanelet2"
+        else:
+            package_dir["lanelet2"] = str(lanelet2_path)
+        package_data["lanelet2"] = ["*.so", "lib/*.so*"]
+    
+    return packages, package_dir, package_data
+
+
+packages, package_dir, package_data = get_packages_and_dirs()
+
 # Setup configuration
 setup(
     cmdclass={
@@ -108,21 +143,8 @@ setup(
         'develop': DevelopCommand,
         'install': InstallCommand,
     },
-    packages=[
-        "autoware_lanelet2_extension_python",
-        "autoware_lanelet2_extension_python.impl",
-        "autoware_lanelet2_extension_python.projection",
-        "autoware_lanelet2_extension_python.regulatory_elements",
-        "autoware_lanelet2_extension_python.utility",
-        "lanelet2",
-    ],
-    package_dir={
-        "autoware_lanelet2_extension_python": "autoware_lanelet2_extension_python/autoware_lanelet2_extension_python",
-        "lanelet2": "install/lib/python3/dist-packages/lanelet2",
-    },
-    package_data={
-        "autoware_lanelet2_extension_python": ["*.so"],
-        "lanelet2": ["*.so", "lib/*.so*"],
-    },
+    packages=packages,
+    package_dir=package_dir,
+    package_data=package_data,
     include_package_data=True,
 )
