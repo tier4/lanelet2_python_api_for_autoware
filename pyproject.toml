@@ -44,9 +44,18 @@ dev = [
 Homepage = "https://github.com/yourusername/lanelet2_python_api_for_autoware"
 Repository = "https://github.com/yourusername/lanelet2_python_api_for_autoware"
 
-# Disable Poetry package mode since we're using setuptools
+# Poetry configuration for dependency management
 [tool.poetry]
-package-mode = false
+name = "lanelet2-python-api-for-autoware"
+version = "0.1.0"
+description = "Standalone implementation of the Lanelet2 library and Autoware's Lanelet2 extension"
+authors = ["Your Name <you@example.com>"]
+readme = "readme.md"
+packages = [
+    {include = "autoware_lanelet2_extension_python", from = "autoware_lanelet2_extension_python"},
+    {include = "lanelet2"},
+]
+build = "build.py"
 
 [tool.poetry.dependencies]
 python = "^3.8"

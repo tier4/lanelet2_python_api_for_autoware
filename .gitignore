@@ -1,6 +1,7 @@
 .vscode
 build
 build_cpp
+build_poetry
 install
 .temp.git
 __pycache__
@@ -9,4 +10,8 @@ tutorial_docs/example_cache.json
 dist
 poetry.lock
 *.egg-info
-*.so
+# Don't ignore .so files in source directories (needed for Poetry)
+# *.so
+# Instead, ignore .so files only in specific locations
+/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python/*.so
+/lanelet2/
