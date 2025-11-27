@@ -21,25 +21,51 @@ def run_command(cmd, cwd=None):
 
 
 def build_cpp_extensions():
-    """Build all C++ extensions using existing build script."""
+    """Build all C++ extensions using CMake."""
     root_dir = Path(__file__).parent.absolute()
+    install_dir = root_dir / "install"
     
-    # Use a different build directory to avoid conflicts
-    for project in ["Rosless-Lanelet2", "autoware_lanelet2_extension", "autoware_lanelet2_extension_python"]:
-        project_path = root_dir / project
+    # Check for system dependencies first
+    try:
+        run_command(["cmake", "--version"])
+        run_command(["make", "--version"])
+    except (FileNotFoundError, RuntimeError):
+        print("Error: Required build tools (cmake, make) not found.", file=sys.stderr)
+        print("Please install build dependencies first.", file=sys.stderr)
+        raise RuntimeError("Missing build dependencies")
+    
+    # Build projects in dependency order with proper CMAKE_PREFIX_PATH
+    projects = [
+        ("Rosless-Lanelet2", []),
+        ("autoware_lanelet2_extension", [str(install_dir)]),
+        ("autoware_lanelet2_extension_python", [str(install_dir)])
+    ]
+    
+    for project_name, cmake_prefix_paths in projects:
+        project_path = root_dir / project_name
         if project_path.exists():
-            project_build = root_dir / "build_cpp" / project
+            project_build = root_dir / "build_cpp" / project_name
             project_build.mkdir(parents=True, exist_ok=True)
             
-            print(f"Building {project}...")
-            run_command([
+            print(f"Building {project_name}...")
+            
+            cmake_cmd = [
                 "cmake",
                 str(project_path),
-                f"-DCMAKE_INSTALL_PREFIX={root_dir / 'install'}",
-                "-DCMAKE_BUILD_TYPE=Release"
-            ], cwd=project_build)
+                f"-DCMAKE_INSTALL_PREFIX={install_dir}",
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-Wno-dev"  # Suppress developer warnings
+            ]
             
-            run_command(["make", "-j"], cwd=project_build)
+            # Add CMAKE_PREFIX_PATH for dependency projects
+            if cmake_prefix_paths:
+                cmake_cmd.append(f"-DCMAKE_PREFIX_PATH={';'.join(cmake_prefix_paths)}")
+            
+            run_command(cmake_cmd, cwd=project_build)
+            # Use parallel build with available cores
+            import multiprocessing
+            nproc = multiprocessing.cpu_count()
+            run_command(["make", f"-j{nproc}"], cwd=project_build)
             run_command(["make", "install"], cwd=project_build)
 
 
