@@ -1,7 +1,12 @@
 .vscode
 build
+build_cpp
 install
 .temp.git
 __pycache__
 .ipynb_checkpoints
 tutorial_docs/example_cache.json
+dist
+poetry.lock
+*.egg-info
+*.so
