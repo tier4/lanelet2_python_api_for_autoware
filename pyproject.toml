@@ -51,7 +51,7 @@ description = "Standalone implementation of the Lanelet2 library and Autoware's 
 authors = ["Your Name <you@example.com>"]
 readme = "readme.md"
 packages = [
-    {include = "autoware_lanelet2_extension_python", from = "autoware_lanelet2_extension_python"},
+    {include = "autoware_lanelet2_extension_python", from = "autoware_lanelet2_extension/autoware_lanelet2_extension_python"},
     {include = "lanelet2"},
 ]
 build = "build.py"
