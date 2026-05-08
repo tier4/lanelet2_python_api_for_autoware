@@ -92,7 +92,7 @@ class BuildPyCommand(build_py):
                 shutil.rmtree(lanelet2_dst)
             shutil.copytree(lanelet2_src, lanelet2_dst)
         
-        # Copy autoware extension modules
+        # Copy autoware extension modules next to the Python package (nested layout)
         autoware_src = install_dir / "lib" / "python3" / "dist-packages" / "autoware_lanelet2_extension_python"
         if autoware_src.exists():
             import shutil
