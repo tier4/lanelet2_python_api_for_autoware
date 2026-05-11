@@ -53,6 +53,7 @@ def build_cpp_extensions():
                 "cmake",
                 str(project_path),
                 f"-DCMAKE_INSTALL_PREFIX={install_dir}",
+                f"-DPython3_EXECUTABLE={sys.executable}",
                 "-DCMAKE_BUILD_TYPE=Release",
                 "-Wno-dev"  # Suppress developer warnings
             ]
