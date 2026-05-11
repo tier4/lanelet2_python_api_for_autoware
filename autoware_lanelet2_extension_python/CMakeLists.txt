@@ -33,17 +33,25 @@ set(LANELET2_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../Rosless-Lanelet2")
 foreach(comp core io projection routing traffic_rules validation)
     string(TOUPPER ${comp} COMP_UPPER)
 
-    # Find library
+    # Find library - check multiple possible locations
     find_library(Lanelet2_${COMP_UPPER}_LIBRARY
         NAMES lanelet2_${comp}
         PATHS
+            "${CMAKE_INSTALL_PREFIX}/lib"
             "${LANELET2_ROOT}/build/lanelet2_${comp}"
             "${LANELET2_ROOT}/build/lib"
+            "${LANELET2_ROOT}/install/lib"
         NO_DEFAULT_PATH
     )
 
-    # Directly set the include directory path
-    set(Lanelet2_${COMP_UPPER}_INCLUDE_DIR "${LANELET2_ROOT}/lanelet2_${comp}/include")
+    # Check for include directory in multiple locations
+    if(EXISTS "${CMAKE_INSTALL_PREFIX}/include/lanelet2_${comp}")
+        set(Lanelet2_${COMP_UPPER}_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include")
+    elseif(EXISTS "${LANELET2_ROOT}/install/include/lanelet2_${comp}")
+        set(Lanelet2_${COMP_UPPER}_INCLUDE_DIR "${LANELET2_ROOT}/install/include")
+    else()
+        set(Lanelet2_${COMP_UPPER}_INCLUDE_DIR "${LANELET2_ROOT}/lanelet2_${comp}/include")
+    endif()
 
     message(STATUS "Looking for ${comp} in:")
     message(STATUS "  Library: ${LANELET2_ROOT}/build/lanelet2_${comp}")
@@ -73,7 +81,9 @@ set(LANELET2_EXTENSION_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../autoware_lanelet2_ex
 find_library(Lanelet2_Extension_LIBRARY
     NAMES lanelet2_extension_lib
     PATHS
+        "${CMAKE_INSTALL_PREFIX}/lib"
         "${LANELET2_EXTENSION_ROOT}/build/"
+        "${LANELET2_ROOT}/install/lib"
     NO_DEFAULT_PATH
 )
 set(Lanelet2_Extension_INCLUDE_DIR "${LANELET2_EXTENSION_ROOT}/include")
