@@ -40,8 +40,43 @@ def init_submodules():
         )
 
 
-# Initialise submodules early – before setuptools inspects package_dir.
+def apply_autoware_patch():
+    """Apply the autoware_lanelet2_extension patch after submodule init.
+
+    The submodule contains the upstream autoware_lanelet2_extension which
+    depends on ROS/autoware_cmake.  The patch removes those dependencies
+    so the project can be built standalone.
+    """
+    root_dir = Path(__file__).parent.absolute()
+    submodule = root_dir / "autoware_lanelet2_extension"
+    patch = root_dir / "patches" / "autoware_lanelet2_extension_full.patch"
+    if not patch.is_file():
+        return
+    if not submodule.is_dir():
+        return
+
+    # Check if the patch is already applied (reverse-apply check succeeds).
+    result = subprocess.run(
+        ["git", "apply", "--reverse", "--check", str(patch)],
+        cwd=submodule,
+        capture_output=True,
+    )
+    if result.returncode == 0:
+        # Patch is already applied.
+        return
+
+    print("Applying autoware_lanelet2_extension patch ...")
+    subprocess.run(
+        ["git", "apply", str(patch)],
+        cwd=submodule,
+        check=True,
+    )
+
+
+# Initialise submodules and apply patches early – before setuptools
+# inspects package_dir.
 init_submodules()
+apply_autoware_patch()
 
 # Path prefix for sources that live inside the submodule.
 _EXT_SUB = "autoware_lanelet2_extension"
