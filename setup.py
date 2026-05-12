@@ -20,6 +20,33 @@ def run_command(cmd, cwd=None):
     return result.stdout
 
 
+def init_submodules():
+    """Initialize git submodules if not already done.
+
+    When this package is installed via pip/uv from a git URL, the tool clones
+    the repository but does NOT initialise submodules automatically.  We run
+    ``git submodule update --init --recursive`` here so that the
+    ``autoware_lanelet2_extension`` directory is populated before setuptools
+    tries to resolve ``package_dir``.
+    """
+    root_dir = Path(__file__).parent.absolute()
+    marker = root_dir / "autoware_lanelet2_extension" / "CMakeLists.txt"
+    if not marker.exists():
+        print("Initializing git submodules ...")
+        subprocess.run(
+            ["git", "submodule", "update", "--init", "--recursive"],
+            cwd=root_dir,
+            check=True,
+        )
+
+
+# Initialise submodules early – before setuptools inspects package_dir.
+init_submodules()
+
+# Path prefix for sources that live inside the submodule.
+_EXT_SUB = "autoware_lanelet2_extension"
+
+
 def build_cpp_extensions():
     """Build all C++ extensions using CMake."""
     root_dir = Path(__file__).parent.absolute()
@@ -35,10 +62,12 @@ def build_cpp_extensions():
         raise RuntimeError("Missing build dependencies")
     
     # Build projects in dependency order with proper CMAKE_PREFIX_PATH
+    # After submodule init the C++ and Python extension sources live under
+    # autoware_lanelet2_extension/<name> (one level deeper than before).
     projects = [
         ("Rosless-Lanelet2", []),
-        ("autoware_lanelet2_extension", [str(install_dir)]),
-        ("autoware_lanelet2_extension_python", [str(install_dir)])
+        (f"{_EXT_SUB}/autoware_lanelet2_extension", [str(install_dir)]),
+        (f"{_EXT_SUB}/autoware_lanelet2_extension_python", [str(install_dir)])
     ]
     
     for project_name, cmake_prefix_paths in projects:
@@ -139,7 +168,7 @@ def get_packages_and_dirs():
     ]
     
     package_dir = {
-        "autoware_lanelet2_extension_python": "autoware_lanelet2_extension_python/autoware_lanelet2_extension_python",
+        "autoware_lanelet2_extension_python": f"{_EXT_SUB}/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python",
     }
     
     package_data = {
