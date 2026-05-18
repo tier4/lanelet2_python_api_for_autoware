@@ -20,6 +20,68 @@ def run_command(cmd, cwd=None):
     return result.stdout
 
 
+def init_submodules():
+    """Initialize git submodules if not already done.
+
+    When this package is installed via pip/uv from a git URL, the tool clones
+    the repository but does NOT initialise submodules automatically.  We run
+    ``git submodule update --init --recursive`` here so that the
+    ``autoware_lanelet2_extension`` directory is populated before setuptools
+    tries to resolve ``package_dir``.
+    """
+    root_dir = Path(__file__).parent.absolute()
+    marker = root_dir / "autoware_lanelet2_extension" / "CMakeLists.txt"
+    if not marker.exists():
+        print("Initializing git submodules ...")
+        subprocess.run(
+            ["git", "submodule", "update", "--init", "--recursive"],
+            cwd=root_dir,
+            check=True,
+        )
+
+
+def apply_autoware_patch():
+    """Apply the autoware_lanelet2_extension patch after submodule init.
+
+    The submodule contains the upstream autoware_lanelet2_extension which
+    depends on ROS/autoware_cmake.  The patch removes those dependencies
+    so the project can be built standalone.
+    """
+    root_dir = Path(__file__).parent.absolute()
+    submodule = root_dir / "autoware_lanelet2_extension"
+    patch = root_dir / "patches" / "autoware_lanelet2_extension_full.patch"
+    if not patch.is_file():
+        return
+    if not submodule.is_dir():
+        return
+
+    # Check if the patch is already applied (reverse-apply check succeeds).
+    result = subprocess.run(
+        ["git", "apply", "--reverse", "--check", str(patch)],
+        cwd=submodule,
+        capture_output=True,
+    )
+    if result.returncode == 0:
+        # Patch is already applied.
+        return
+
+    print("Applying autoware_lanelet2_extension patch ...")
+    subprocess.run(
+        ["git", "apply", str(patch)],
+        cwd=submodule,
+        check=True,
+    )
+
+
+# Initialise submodules and apply patches early – before setuptools
+# inspects package_dir.
+init_submodules()
+apply_autoware_patch()
+
+# Path prefix for sources that live inside the submodule.
+_EXT_SUB = "autoware_lanelet2_extension"
+
+
 def build_cpp_extensions():
     """Build all C++ extensions using CMake."""
     root_dir = Path(__file__).parent.absolute()
@@ -35,10 +97,12 @@ def build_cpp_extensions():
         raise RuntimeError("Missing build dependencies")
     
     # Build projects in dependency order with proper CMAKE_PREFIX_PATH
+    # After submodule init the C++ and Python extension sources live under
+    # autoware_lanelet2_extension/<name> (one level deeper than before).
     projects = [
         ("Rosless-Lanelet2", []),
-        ("autoware_lanelet2_extension", [str(install_dir)]),
-        ("autoware_lanelet2_extension_python", [str(install_dir)])
+        (f"{_EXT_SUB}/autoware_lanelet2_extension", [str(install_dir)]),
+        (f"{_EXT_SUB}/autoware_lanelet2_extension_python", [str(install_dir)])
     ]
     
     for project_name, cmake_prefix_paths in projects:
@@ -53,6 +117,7 @@ def build_cpp_extensions():
                 "cmake",
                 str(project_path),
                 f"-DCMAKE_INSTALL_PREFIX={install_dir}",
+                f"-DPython3_EXECUTABLE={sys.executable}",
                 "-DCMAKE_BUILD_TYPE=Release",
                 "-Wno-dev"  # Suppress developer warnings
             ]
@@ -139,7 +204,7 @@ def get_packages_and_dirs():
     ]
     
     package_dir = {
-        "autoware_lanelet2_extension_python": "autoware_lanelet2_extension_python/autoware_lanelet2_extension_python",
+        "autoware_lanelet2_extension_python": f"{_EXT_SUB}/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python",
     }
     
     package_data = {
