@@ -1,0 +1,4 @@
+[submodule "autoware_lanelet2_extension"]
+	path = autoware_lanelet2_extension
+	url = https://github.com/autowarefoundation/autoware_lanelet2_extension.git
+	track = false

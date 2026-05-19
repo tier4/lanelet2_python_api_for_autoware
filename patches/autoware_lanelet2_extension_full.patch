@@ -1,0 +1,3066 @@
+diff --git a/autoware_lanelet2_extension/CMakeLists.txt b/autoware_lanelet2_extension/CMakeLists.txt
+index 6c1f16c..dd06c1d 100644
+--- a/autoware_lanelet2_extension/CMakeLists.txt
++++ b/autoware_lanelet2_extension/CMakeLists.txt
+@@ -1,21 +1,81 @@
+ cmake_minimum_required(VERSION 3.14)
+-project(autoware_lanelet2_extension)
++project(lanelet2_extension)
+ 
+-find_package(autoware_cmake REQUIRED)
+-find_package(tf2 REQUIRED)
+-autoware_package()
++# Set C++ standard
++set(CMAKE_CXX_STANDARD 17)
++set(CMAKE_CXX_STANDARD_REQUIRED ON)
++set(CMAKE_CXX_EXTENSIONS OFF)
+ 
+-ament_auto_add_library(${PROJECT_NAME}_lib SHARED
++set(PYTHON_INSTALL_DIR "lib/python3/dist-packages")
++
++# Add path to custom cmake modules if needed
++list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/")
++
++# Find all required packages
++find_package(Boost REQUIRED)
++find_package(Eigen3 REQUIRED)
++find_package(GeographicLib REQUIRED)
++find_package(pugixml REQUIRED)
++find_package(range-v3 REQUIRED)
++
++# Find Lanelet2 components
++# Set paths to Lanelet2 build directories
++set(LANELET2_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../Rosless-Lanelet2")
++
++# Create imported targets for Lanelet2 components
++foreach(comp core io projection routing traffic_rules validation)
++    string(TOUPPER ${comp} COMP_UPPER)
++
++    # Find library - check multiple possible locations
++    find_library(Lanelet2_${COMP_UPPER}_LIBRARY
++        NAMES lanelet2_${comp}
++        PATHS
++            "${CMAKE_INSTALL_PREFIX}/lib"
++            "${LANELET2_ROOT}/build/lanelet2_${comp}"
++            "${LANELET2_ROOT}/build/lib"
++            "${LANELET2_ROOT}/install/lib"
++        NO_DEFAULT_PATH
++    )
++
++    # Check for include directory in multiple locations
++    if(EXISTS "${CMAKE_INSTALL_PREFIX}/include/lanelet2_${comp}")
++        set(Lanelet2_${COMP_UPPER}_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include")
++    elseif(EXISTS "${LANELET2_ROOT}/install/include/lanelet2_${comp}")
++        set(Lanelet2_${COMP_UPPER}_INCLUDE_DIR "${LANELET2_ROOT}/install/include")
++    else()
++        set(Lanelet2_${COMP_UPPER}_INCLUDE_DIR "${LANELET2_ROOT}/lanelet2_${comp}/include")
++    endif()
++
++    message(STATUS "Looking for ${comp} in:")
++    message(STATUS "  Library: ${LANELET2_ROOT}/build/lanelet2_${comp}")
++    message(STATUS "  Include: ${Lanelet2_${COMP_UPPER}_INCLUDE_DIR}")
++    message(STATUS "Found library: ${Lanelet2_${COMP_UPPER}_LIBRARY}")
++
++    if(Lanelet2_${COMP_UPPER}_LIBRARY AND EXISTS "${Lanelet2_${COMP_UPPER}_INCLUDE_DIR}")
++        add_library(Lanelet2::${comp} UNKNOWN IMPORTED)
++        set_target_properties(Lanelet2::${comp} PROPERTIES
++            IMPORTED_LOCATION "${Lanelet2_${COMP_UPPER}_LIBRARY}"
++            INTERFACE_INCLUDE_DIRECTORIES "${Lanelet2_${COMP_UPPER}_INCLUDE_DIR}"
++        )
++        message(STATUS "Successfully configured Lanelet2_${comp}")
++    else()
++        message(FATAL_ERROR "Could not find Lanelet2 component: ${comp}\n"
++                          "Library path: ${Lanelet2_${COMP_UPPER}_LIBRARY}\n"
++                          "Include path: ${Lanelet2_${COMP_UPPER}_INCLUDE_DIR}")
++    endif()
++
++    unset(Lanelet2_${COMP_UPPER}_LIBRARY CACHE)
++endforeach()
++
++add_library(${PROJECT_NAME}_lib SHARED
+   lib/autoware_traffic_rules.cpp
+   lib/autoware_osm_parser.cpp
+   lib/autoware_traffic_light.cpp
+   lib/crosswalk.cpp
+   lib/detection_area.cpp
+-  lib/landmark.cpp
+   lib/no_parking_area.cpp
+   lib/no_stopping_area.cpp
+   lib/bus_stop_area.cpp
+-  lib/message_conversion.cpp
+   lib/mgrs_projector.cpp
+   lib/query.cpp
+   lib/roundabout.cpp
+@@ -25,32 +85,46 @@ ament_auto_add_library(${PROJECT_NAME}_lib SHARED
+   lib/utilities.cpp
+   lib/deprecated.cpp
+   lib/virtual_traffic_light.cpp
+-  lib/visualization.cpp
+-  lib/route_checker.cpp
++  # lib/visualization.cpp
++  # lib/route_checker.cpp
++)
++
++# Now we can set include directories for our library
++target_include_directories(${PROJECT_NAME}_lib
++  PUBLIC
++    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
++    $<INSTALL_INTERFACE:include>
++  PRIVATE
++    ${CMAKE_CURRENT_SOURCE_DIR}/lib
++)
++
++# And link against the dependencies
++target_link_libraries(${PROJECT_NAME}_lib
++  PUBLIC
++    Lanelet2::core
++    Lanelet2::io
++    Lanelet2::projection
++    Lanelet2::routing
++    Lanelet2::traffic_rules
++    Lanelet2::validation
++    GeographicLib::GeographicLib
++    pugixml::pugixml
++    range-v3::range-v3
++    Boost::boost
++    Eigen3::Eigen
++)
++
++# Install targets
++install(TARGETS ${PROJECT_NAME}_lib
++  EXPORT ${PROJECT_NAME}Targets
++  LIBRARY DESTINATION lib
++  ARCHIVE DESTINATION lib
++  RUNTIME DESTINATION bin
++  INCLUDES DESTINATION include
+ )
+ 
+-# Suppress boost geometry uninitialized variable warnings
+-# This is a known issue in boost geometry library where internal template code
+-# may trigger maybe-uninitialized warnings that are false positives.
+-# The warnings occur in boost geometry's distance calculation algorithms
+-# and do not affect the actual functionality of the code.
+-# Related: https://www.boost.org/doc/libs/latest/libs/utility/doc/html/utility/utilities/value_init.html
+-# and https://www.boost.org/doc/libs/1_89_0/libs/optional/doc/html/boost_optional/design/gotchas/false_positive_with__wmaybe_uninitialized.html
+-target_compile_options(${PROJECT_NAME}_lib PRIVATE -Wno-error=maybe-uninitialized)
+-
+-if(BUILD_TESTING)
+-  ament_add_ros_isolated_gtest(projector-test test/src/test_projector.cpp)
+-  target_link_libraries(projector-test ${PROJECT_NAME}_lib ${tf2_LIBRARIES})
+-  ament_add_ros_isolated_gtest(query-test test/src/test_query.cpp)
+-  target_link_libraries(query-test ${PROJECT_NAME}_lib ${tf2_LIBRARIES})
+-  ament_add_ros_isolated_gtest(regulatory_elements-test test/src/test_regulatory_elements.cpp)
+-  target_link_libraries(regulatory_elements-test ${PROJECT_NAME}_lib ${tf2_LIBRARIES})
+-  ament_add_ros_isolated_gtest(utilities-test test/src/test_utilities.cpp)
+-  target_link_libraries(utilities-test ${PROJECT_NAME}_lib ${tf2_LIBRARIES})
+-  ament_add_ros_isolated_gtest(route-test test/src/test_route_checker.cpp)
+-  target_link_libraries(route-test ${PROJECT_NAME}_lib ${tf2_LIBRARIES})
+-  ament_add_ros_isolated_gtest(normalize-radian test/src/test_normalize_radian.cpp)
+-  target_link_libraries(normalize-radian ${PROJECT_NAME}_lib ${tf2_LIBRARIES})
+-endif()
+-
+-ament_auto_package()
++# Install headers
++install(DIRECTORY include/
++  DESTINATION include
++  FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
++)
+\ No newline at end of file
+diff --git a/autoware_lanelet2_extension/cmake/FindGeographicLib.cmake b/autoware_lanelet2_extension/cmake/FindGeographicLib.cmake
+new file mode 100644
+index 0000000..6cdf65b
+--- /dev/null
++++ b/autoware_lanelet2_extension/cmake/FindGeographicLib.cmake
+@@ -0,0 +1,42 @@
++# Look for GeographicLib
++#
++# Sets
++#  GeographicLib_FOUND = TRUE
++#  GeographicLib_INCLUDE_DIRS = /usr/local/include
++#  GeographicLib_LIBRARIES = /usr/local/lib/libGeographic.so
++#  GeographicLib_LIBRARY_DIRS = /usr/local/lib
++
++find_library (GeographicLib_LIBRARIES Geographic
++  PATHS "${CMAKE_INSTALL_PREFIX}/../GeographicLib/lib")
++
++if (GeographicLib_LIBRARIES)
++  get_filename_component (GeographicLib_LIBRARY_DIRS
++    "${GeographicLib_LIBRARIES}" PATH)
++
++  get_filename_component (_ROOT_DIR "${GeographicLib_LIBRARY_DIRS}" PATH)
++  set (GeographicLib_INCLUDE_DIRS "${_ROOT_DIR}/include")
++  set (GeographicLib_BINARY_DIRS "${_ROOT_DIR}/bin")
++  if (NOT EXISTS "${GeographicLib_INCLUDE_DIRS}/GeographicLib/Config.h")
++    get_filename_component(_ROOT_DIR "${_ROOT_DIR}" PATH)
++    set (GeographicLib_INCLUDE_DIRS "${_ROOT_DIR}/include")
++    set (GeographicLib_BINARY_DIRS "${_ROOT_DIR}/bin")
++    if (NOT EXISTS "${GeographicLib_INCLUDE_DIRS}/GeographicLib/Config.h")
++      unset (GeographicLib_INCLUDE_DIRS)
++      unset (GeographicLib_LIBRARIES)
++      unset (GeographicLib_LIBRARY_DIRS)
++      unset (GeographicLib_BINARY_DIRS)
++    endif()
++  endif ()
++endif ()
++
++include (FindPackageHandleStandardArgs)
++find_package_handle_standard_args (GeographicLib DEFAULT_MSG
++  GeographicLib_LIBRARY_DIRS GeographicLib_LIBRARIES GeographicLib_INCLUDE_DIRS)
++mark_as_advanced (GeographicLib_LIBRARY_DIRS GeographicLib_LIBRARIES
++  GeographicLib_INCLUDE_DIRS)
++
++if (GeographicLib_FOUND)
++    add_library(GeographicLib::GeographicLib INTERFACE IMPORTED)
++    target_link_libraries(GeographicLib::GeographicLib INTERFACE ${GeographicLib_LIBRARIES})
++    target_include_directories(GeographicLib::GeographicLib INTERFACE ${GeographicLib_INCLUDE_DIRS})
++endif ()
+diff --git a/autoware_lanelet2_extension/cmake/FindLanelet2.cmake b/autoware_lanelet2_extension/cmake/FindLanelet2.cmake
+new file mode 100644
+index 0000000..f2a5430
+--- /dev/null
++++ b/autoware_lanelet2_extension/cmake/FindLanelet2.cmake
+@@ -0,0 +1,26 @@
++# Find Lanelet2 components in build directories
++function(find_lanelet2_component COMPONENT)
++  find_library(Lanelet2_${COMPONENT}_LIBRARY
++    NAMES lanelet2_${COMPONENT}
++    PATHS
++      ${CMAKE_CURRENT_SOURCE_DIR}/../Rosless-Lanelet2/lanelet2_${COMPONENT}
++    NO_DEFAULT_PATH
++  )
++
++  if(Lanelet2_${COMPONENT}_LIBRARY)
++    set(Lanelet2_${COMPONENT}_FOUND TRUE PARENT_SCOPE)
++    list(APPEND Lanelet2_LIBRARIES ${Lanelet2_${COMPONENT}_LIBRARY})
++    set(Lanelet2_LIBRARIES ${Lanelet2_LIBRARIES} PARENT_SCOPE)
++  endif()
++endfunction()
++
++# Find each component
++foreach(comp Core IO Projection Routing Traffic_Rules Validation)
++  find_lanelet2_component(${comp})
++endforeach()
++
++include(FindPackageHandleStandardArgs)
++find_package_handle_standard_args(Lanelet2
++  REQUIRED_VARS Lanelet2_LIBRARIES
++  HANDLE_COMPONENTS
++)
+diff --git a/autoware_lanelet2_extension/cmake/GeographicLibConfig.cmake b/autoware_lanelet2_extension/cmake/GeographicLibConfig.cmake
+new file mode 100644
+index 0000000..dd87041
+--- /dev/null
++++ b/autoware_lanelet2_extension/cmake/GeographicLibConfig.cmake
+@@ -0,0 +1,43 @@
++# Look for GeographicLib
++#
++# Sets
++#  GeographicLib_FOUND = TRUE
++#  GeographicLib_INCLUDE_DIRS = /usr/local/include
++#  GeographicLib_LIBRARIES = /usr/local/lib/libGeographic.so
++#  GeographicLib_LIBRARY_DIRS = /usr/local/lib
++
++find_library (GeographicLib_LIBRARIES Geographic
++  PATHS "${CMAKE_INSTALL_PREFIX}/../GeographicLib/lib")
++
++  if (GeographicLib_LIBRARIES)
++  get_filename_component (GeographicLib_LIBRARY_DIRS
++    "${GeographicLib_LIBRARIES}" PATH)
++
++  get_filename_component (_ROOT_DIR "${GeographicLib_LIBRARY_DIRS}" PATH)
++  set (GeographicLib_INCLUDE_DIRS "${_ROOT_DIR}/include")
++  set (GeographicLib_BINARY_DIRS "${_ROOT_DIR}/bin")
++  if (NOT EXISTS "${GeographicLib_INCLUDE_DIRS}/GeographicLib/Config.h")
++    get_filename_component(_ROOT_DIR "${_ROOT_DIR}" PATH)                     # Added to script
++    set (GeographicLib_INCLUDE_DIRS "${_ROOT_DIR}/include")                   # Added to script
++    set (GeographicLib_BINARY_DIRS "${_ROOT_DIR}/bin")                        # Added to script
++    if (NOT EXISTS "${GeographicLib_INCLUDE_DIRS}/GeographicLib/Config.h")    # Added to script
++      unset (GeographicLib_INCLUDE_DIRS)
++      unset (GeographicLib_LIBRARIES)
++      unset (GeographicLib_LIBRARY_DIRS)
++      unset (GeographicLib_BINARY_DIRS)
++    endif()                                                                   # Added to script
++  endif ()
++  unset (_ROOT_DIR)                                                           # Moved below if() statements
++endif ()
++
++include (FindPackageHandleStandardArgs)
++find_package_handle_standard_args (GeographicLib DEFAULT_MSG
++  GeographicLib_LIBRARY_DIRS GeographicLib_LIBRARIES GeographicLib_INCLUDE_DIRS)
++mark_as_advanced (GeographicLib_LIBRARY_DIRS GeographicLib_LIBRARIES
++  GeographicLib_INCLUDE_DIRS)
++
++if (GeographicLib_FOUND)
++    add_library(GeographicLib INTERFACE IMPORTED)
++    target_link_libraries(GeographicLib INTERFACE ${GeographicLib_LIBRARIES})
++    target_include_directories(GeographicLib INTERFACE ${GeographicLib_INCLUDE_DIRS})
++endif ()
+diff --git a/autoware_lanelet2_extension/cmake/lanelet2_extensionConfig.cmake.in b/autoware_lanelet2_extension/cmake/lanelet2_extensionConfig.cmake.in
+new file mode 100644
+index 0000000..9039695
+--- /dev/null
++++ b/autoware_lanelet2_extension/cmake/lanelet2_extensionConfig.cmake.in
+@@ -0,0 +1,11 @@
++@PACKAGE_INIT@
++
++include(CMakeFindDependencyMacro)
++
++find_dependency(GeographicLib)
++find_dependency(Lanelet2)
++find_dependency(pugixml)
++find_dependency(range-v3)
++
++include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
++check_required_components("@PROJECT_NAME@")
+diff --git a/autoware_lanelet2_extension/include/autoware_lanelet2_extension/localization/landmark.hpp b/autoware_lanelet2_extension/include/autoware_lanelet2_extension/localization/landmark.hpp
+deleted file mode 100644
+index 7722582..0000000
+--- a/autoware_lanelet2_extension/include/autoware_lanelet2_extension/localization/landmark.hpp
++++ /dev/null
+@@ -1,38 +0,0 @@
+-// Copyright 2023 Autoware Foundation
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License");
+-// you may not use this file except in compliance with the License.
+-// You may obtain a copy of the License at
+-//
+-//     http://www.apache.org/licenses/LICENSE-2.0
+-//
+-// Unless required by applicable law or agreed to in writing, software
+-// distributed under the License is distributed on an "AS IS" BASIS,
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-// See the License for the specific language governing permissions and
+-// limitations under the License.
+-
+-#ifndef AUTOWARE_LANELET2_EXTENSION__LOCALIZATION__LANDMARK_HPP_
+-#define AUTOWARE_LANELET2_EXTENSION__LOCALIZATION__LANDMARK_HPP_
+-
+-#include <autoware_map_msgs/msg/lanelet_map_bin.hpp>
+-
+-#include <lanelet2_core/primitives/Polygon.h>
+-
+-#include <string>
+-#include <vector>
+-
+-// NOLINTBEGIN(readability-identifier-naming)
+-
+-namespace lanelet::localization
+-{
+-
+-std::vector<lanelet::Polygon3d> parseLandmarkPolygons(
+-  const autoware_map_msgs::msg::LaneletMapBin::ConstSharedPtr & msg,
+-  const std::string & target_subtype);
+-
+-}  // namespace lanelet::localization
+-
+-// NOLINTEND(readability-identifier-naming)
+-
+-#endif  // AUTOWARE_LANELET2_EXTENSION__LOCALIZATION__LANDMARK_HPP_
+diff --git a/autoware_lanelet2_extension/include/autoware_lanelet2_extension/utility/message_conversion.hpp b/autoware_lanelet2_extension/include/autoware_lanelet2_extension/utility/message_conversion.hpp
+deleted file mode 100644
+index 9ece908..0000000
+--- a/autoware_lanelet2_extension/include/autoware_lanelet2_extension/utility/message_conversion.hpp
++++ /dev/null
+@@ -1,116 +0,0 @@
+-// Copyright 2015-2019 Autoware Foundation. All rights reserved.
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License");
+-// you may not use this file except in compliance with the License.
+-// You may obtain a copy of the License at
+-//
+-//     http://www.apache.org/licenses/LICENSE-2.0
+-//
+-// Unless required by applicable law or agreed to in writing, software
+-// distributed under the License is distributed on an "AS IS" BASIS,
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-// See the License for the specific language governing permissions and
+-// limitations under the License.
+-//
+-// Authors: Simon Thompson, Ryohsuke Mitsudome
+-
+-#ifndef AUTOWARE_LANELET2_EXTENSION__UTILITY__MESSAGE_CONVERSION_HPP_
+-#define AUTOWARE_LANELET2_EXTENSION__UTILITY__MESSAGE_CONVERSION_HPP_
+-
+-// NOLINTBEGIN(readability-identifier-naming)
+-
+-#include <autoware_map_msgs/msg/lanelet_map_bin.hpp>
+-#include <geometry_msgs/msg/point.hpp>
+-#include <geometry_msgs/msg/point32.hpp>
+-#include <geometry_msgs/msg/polygon.hpp>
+-
+-#include <lanelet2_core/Forward.h>
+-#include <lanelet2_routing/Forward.h>
+-#include <lanelet2_traffic_rules/TrafficRulesFactory.h>
+-
+-namespace lanelet::utils::conversion
+-{
+-/**
+- * [toBinMsg converts lanelet2 map to ROS message. Similar implementation to
+- * lanelet::io_handlers::BinHandler::write()]
+- * @param map [lanelet map data]
+- * @param msg [converted ROS message. Only "data" field is filled]
+- */
+-[[deprecated("please use autoware::lanelet2_utils::to_autoware_map_msgs instead")]] void toBinMsg(
+-  const lanelet::LaneletMapPtr & map, autoware_map_msgs::msg::LaneletMapBin * msg);
+-
+-/**
+- * [fromBinMsg converts ROS message into lanelet2 data. Similar implementation
+- * to lanelet::io_handlers::BinHandler::parse()]
+- * @param msg [ROS message for lanelet map]
+- * @param map [Converted lanelet2 data]
+- */
+-[[deprecated("please use autoware::lanelet2_utils::from_autoware_map_msgs instead")]] void
+-fromBinMsg(const autoware_map_msgs::msg::LaneletMapBin & msg, lanelet::LaneletMapPtr map);
+-[[deprecated(
+-  "please use autoware::lanelet2_utils::from_autoware_map_msgs and "
+-  "autoware::lanelet2_utils::instantiate_routing_graph_and_traffic_rules instead")]] void
+-fromBinMsg(
+-  const autoware_map_msgs::msg::LaneletMapBin & msg, lanelet::LaneletMapPtr map,
+-  lanelet::traffic_rules::TrafficRulesPtr * traffic_rules,
+-  lanelet::routing::RoutingGraphPtr * routing_graph);
+-
+-/**
+- * [toGeomMsgPt converts various point types to geometry_msgs point]
+- * @param src [input point(geometry_msgs::msg::Point3,
+- * Eigen::VEctor3d=lanelet::BasicPoint3d, lanelet::Point3d, lanelet::Point2d) ]
+- * @param dst [converted geometry_msgs point]
+- */
+-[[deprecated("please use geometry_msgs::build instead")]] void toGeomMsgPt(
+-  const geometry_msgs::msg::Point32 & src, geometry_msgs::msg::Point * dst);
+-[[deprecated("please use geometry_msgs::build instead")]] void toGeomMsgPt(
+-  const Eigen::Vector3d & src, geometry_msgs::msg::Point * dst);
+-[[deprecated("please use autoware::lanelet2_utils::to_ros")]] void toGeomMsgPt(
+-  const lanelet::ConstPoint3d & src, geometry_msgs::msg::Point * dst);
+-[[deprecated("please use autoware::lanelet2_utils::to_ros")]] void toGeomMsgPt(
+-  const lanelet::ConstPoint2d & src, geometry_msgs::msg::Point * dst);
+-
+-/**
+- * [toGeomMsgPt converts various point types to geometry_msgs point]
+- * @param src [input point(geometry_msgs::msg::Point3,
+- * Eigen::VEctor3d=lanelet::BasicPoint3d, lanelet::Point3d, lanelet::Point2d) ]
+- * @return    [converted geometry_msgs point]
+- */
+-[[deprecated("please use geometry_msgs::build instead")]] geometry_msgs::msg::Point toGeomMsgPt(
+-  const geometry_msgs::msg::Point32 & src);
+-[[deprecated("please use geometry_msgs::build instead")]] geometry_msgs::msg::Point toGeomMsgPt(
+-  const Eigen::Vector3d & src);
+-[[deprecated("please use autoware::lanelet2_utils::to_ros")]] geometry_msgs::msg::Point toGeomMsgPt(
+-  const lanelet::ConstPoint3d & src);
+-[[deprecated("please use autoware::lanelet2_utils::to_ros")]] geometry_msgs::msg::Point toGeomMsgPt(
+-  const lanelet::ConstPoint2d & src);
+-
+-[[deprecated("please use autoware::lanelet2_utils::from_ros")]] lanelet::ConstPoint3d
+-toLaneletPoint(const geometry_msgs::msg::Point & src);
+-[[deprecated("please use autoware::lanelet2_utils::from_ros")]] void toLaneletPoint(
+-  const geometry_msgs::msg::Point & src, lanelet::ConstPoint3d * dst);
+-
+-/**
+- * [toGeomMsgPoly converts lanelet polygon to geometry_msgs polygon]
+- * @param ll_poly   [input polygon]
+- * @param geom_poly [converted geometry_msgs point]
+- */
+-[[deprecated(
+-  "toGeomMsgPoly(const lanelet::ConstPolygon3d, geometry_msgs::msg::Polygon *) will be "
+-  "deprecated")]] void
+-toGeomMsgPoly(const lanelet::ConstPolygon3d & ll_poly, geometry_msgs::msg::Polygon * geom_poly);
+-
+-/**
+- * [toGeomMsgPt32 converts Eigen::Vector3d(lanelet:BasicPoint3d to
+- * geometry_msgs::msg::Point32)]
+- * @param src [input point]
+- * @param dst [converted point]
+- */
+-[[deprecated("please use geometry_msgs::build instead")]] void toGeomMsgPt32(
+-  const Eigen::Vector3d & src, geometry_msgs::msg::Point32 * dst);
+-
+-}  // namespace lanelet::utils::conversion
+-
+-// NOLINTEND(readability-identifier-naming)
+-
+-#endif  // AUTOWARE_LANELET2_EXTENSION__UTILITY__MESSAGE_CONVERSION_HPP_
+diff --git a/autoware_lanelet2_extension/include/autoware_lanelet2_extension/utility/query.hpp b/autoware_lanelet2_extension/include/autoware_lanelet2_extension/utility/query.hpp
+index 7d4bf02..23c8b14 100644
+--- a/autoware_lanelet2_extension/include/autoware_lanelet2_extension/utility/query.hpp
++++ b/autoware_lanelet2_extension/include/autoware_lanelet2_extension/utility/query.hpp
+@@ -26,9 +26,6 @@
+ #include "autoware_lanelet2_extension/regulatory_elements/no_stopping_area.hpp"
+ #include "autoware_lanelet2_extension/regulatory_elements/speed_bump.hpp"
+ 
+-#include <geometry_msgs/msg/point.hpp>
+-#include <geometry_msgs/msg/pose.hpp>
+-
+ #include <lanelet2_core/LaneletMap.h>
+ #include <lanelet2_core/primitives/Lanelet.h>
+ #include <lanelet2_routing/RoutingGraph.h>
+@@ -272,7 +269,7 @@ lanelet::ConstPolygons3d getAllPolygonsByType(
+ 
+ [[deprecated("use LaneletLayer R-tree API instead")]]
+ ConstLanelets getLaneletsWithinRange(
+-  const lanelet::ConstLanelets & lanelets, const geometry_msgs::msg::Point & search_point,
++  const lanelet::ConstLanelets & lanelets, const Eigen::Vector3d & search_point,
+   const double range);
+ 
+ [[deprecated("please use autoware::lanelet2_utils::lane_changeable_neighbors")]] ConstLanelets
+@@ -281,7 +278,7 @@ getLaneChangeableNeighbors(const routing::RoutingGraphPtr & graph, const ConstLa
+ [[deprecated("please use autoware::lanelet2_utils::lane_changeable_neighbors")]]
+ ConstLanelets getLaneChangeableNeighbors(
+   const routing::RoutingGraphPtr & graph, const ConstLanelets & road_lanelets,
+-  const geometry_msgs::msg::Point & search_point);
++  const Eigen::Vector3d & search_point);
+ 
+ [[deprecated("please use autoware::lanelet2_utils::all_neighbor_lanelets instead")]] ConstLanelets
+ getAllNeighbors(const routing::RoutingGraphPtr & graph, const ConstLanelet & lanelet);
+@@ -295,28 +292,31 @@ getAllNeighborsRight(const routing::RoutingGraphPtr & graph, const ConstLanelet
+ [[deprecated]]
+ ConstLanelets getAllNeighbors(
+   const routing::RoutingGraphPtr & graph, const ConstLanelets & road_lanelets,
+-  const geometry_msgs::msg::Point & search_point);
++  const Eigen::Vector3d & search_point);
+ 
+ [[deprecated("please use autoware::lanelet2_utils::get_closest_lanelet instead")]] bool
+ getClosestLanelet(
+-  const ConstLanelets & lanelets, const geometry_msgs::msg::Pose & search_pose,
++  const ConstLanelets & lanelets,
++  const Eigen::Vector4d & search_pose,  // x,y,z,yaw
+   ConstLanelet * closest_lanelet_ptr);
+ 
+ [[deprecated("please use autoware::lanelet2_utils::get_closest_lanelet_within_constraint instead")]]
+ bool getClosestLaneletWithConstrains(
+-  const ConstLanelets & lanelets, const geometry_msgs::msg::Pose & search_pose,
++  const ConstLanelets & lanelets,
++  const Eigen::Vector4d & search_pose,  // x,y,z,yaw
+   ConstLanelet * closest_lanelet_ptr,
+   const double dist_threshold = std::numeric_limits<double>::max(),
+   const double yaw_threshold = std::numeric_limits<double>::max());
+ 
+ [[deprecated("please use autoware::lanelet2_utils::get_closest_lanelet instead")]] bool
+ getCurrentLanelets(
+-  const ConstLanelets & lanelets, const geometry_msgs::msg::Point & search_point,
++  const ConstLanelets & lanelets, const Eigen::Vector3d & search_point,
+   ConstLanelets * current_lanelets_ptr);
+ 
+ [[deprecated("please use autoware::lanelet2_utils::get_closest_lanelet instead")]] bool
+ getCurrentLanelets(
+-  const ConstLanelets & lanelets, const geometry_msgs::msg::Pose & search_pose,
++  const ConstLanelets & lanelets,
++  const Eigen::Vector4d & search_pose,  // x,y,z,yaw
+   ConstLanelets * current_lanelets_ptr);
+ 
+ /**
+diff --git a/autoware_lanelet2_extension/include/autoware_lanelet2_extension/utility/route_checker.hpp b/autoware_lanelet2_extension/include/autoware_lanelet2_extension/utility/route_checker.hpp
+index 176eb0d..ed05b97 100644
+--- a/autoware_lanelet2_extension/include/autoware_lanelet2_extension/utility/route_checker.hpp
++++ b/autoware_lanelet2_extension/include/autoware_lanelet2_extension/utility/route_checker.hpp
+@@ -15,23 +15,5 @@
+ #ifndef AUTOWARE_LANELET2_EXTENSION__UTILITY__ROUTE_CHECKER_HPP_
+ #define AUTOWARE_LANELET2_EXTENSION__UTILITY__ROUTE_CHECKER_HPP_
+ 
+-// NOLINTBEGIN(readability-identifier-naming)
+-
+-#include <autoware_planning_msgs/msg/lanelet_route.hpp>
+-
+-#include <lanelet2_core/Forward.h>
+-
+-namespace lanelet::utils::route
+-{
+-using autoware_planning_msgs::msg::LaneletRoute;
+-
+-/// @param allow_area If false, routes containing any primitive with primitive_type "area" are
+-/// invalid (lane-only validation). If true, area ids are resolved on areaLayer.
+-bool isRouteValid(
+-  const LaneletRoute & route, const lanelet::LaneletMapPtr lanelet_map_ptr_,
+-  bool allow_area = false);
+-}  // namespace lanelet::utils::route
+-
+-// NOLINTEND(readability-identifier-naming)
+ 
+ #endif  // AUTOWARE_LANELET2_EXTENSION__UTILITY__ROUTE_CHECKER_HPP_
+diff --git a/autoware_lanelet2_extension/include/autoware_lanelet2_extension/utility/utilities.hpp b/autoware_lanelet2_extension/include/autoware_lanelet2_extension/utility/utilities.hpp
+index 792b7f8..f0cbaef 100644
+--- a/autoware_lanelet2_extension/include/autoware_lanelet2_extension/utility/utilities.hpp
++++ b/autoware_lanelet2_extension/include/autoware_lanelet2_extension/utility/utilities.hpp
+@@ -19,9 +19,6 @@
+ 
+ // NOLINTBEGIN(readability-identifier-naming)
+ 
+-#include <geometry_msgs/msg/point.hpp>
+-#include <geometry_msgs/msg/pose.hpp>
+-
+ #include <lanelet2_core/Forward.h>
+ #include <lanelet2_core/primitives/Point.h>
+ #include <lanelet2_routing/Forward.h>
+@@ -112,7 +109,7 @@ bool lineStringToPolygon(
+ [[deprecated(
+   "please use autoware::lanelet2_utils::get_arc_coordinates instead")]] lanelet::ArcCoordinates
+ getArcCoordinates(
+-  const lanelet::ConstLanelets & lanelet_sequence, const geometry_msgs::msg::Pose & pose);
++  const lanelet::ConstLanelets & lanelet_sequence, const Eigen::Vector4d & pose);  // x,y,z,yaw
+ 
+ /**
+  * @brief  This function uses the centerline for the ego to follow.
+@@ -125,7 +122,7 @@ getArcCoordinates(
+   "please use autoware::lanelet2_utils::get_arc_coordinates_on_ego_centerline instead")]] lanelet::
+   ArcCoordinates
+   getArcCoordinatesOnEgoCenterline(
+-    const lanelet::ConstLanelets & lanelet_sequence, const geometry_msgs::msg::Pose & pose,
++    const lanelet::ConstLanelets & lanelet_sequence, const Eigen::Vector4d & pose,  // x,y,z,yaw
+     const lanelet::LaneletMapConstPtr & lanelet_map_ptr);
+ 
+ [[deprecated(
+@@ -140,25 +137,25 @@ getClosestSegment(
+ 
+ [[deprecated("please use autoware::lanelet2_utils::get_lanelet_angle instead")]] double
+ getLaneletAngle(
+-  const lanelet::ConstLanelet & lanelet, const geometry_msgs::msg::Point & search_point);
++  const lanelet::ConstLanelet & lanelet, const Eigen::Vector4d & search_point);  // x,y,z,yaw
+ 
+ [[deprecated("please use autoware::lanelet2_utils::is_in_lanelet instead")]] bool isInLanelet(
+-  const geometry_msgs::msg::Pose & current_pose, const lanelet::ConstLanelet & lanelet,
++  const Eigen::Vector4d & current_pose, const lanelet::ConstLanelet & lanelet,  // x,y,z,yaw
+   const double radius = 0.0);
+ 
+ [[deprecated(
+-  "please use autoware::lanelet2_utils::get_closest_center_pose instead")]] geometry_msgs::msg::Pose
++  "please use autoware::lanelet2_utils::get_closest_center_pose instead")]] Eigen::Vector4d
+ getClosestCenterPose(
+-  const lanelet::ConstLanelet & lanelet, const geometry_msgs::msg::Point & search_point);
++  const lanelet::ConstLanelet & lanelet, const Eigen::Vector3d & search_point);  // x,y,z
+ 
+ [[deprecated(
+   "please use autoware::lanelet2_utils::get_lateral_distance_to_centerline instead")]] double
+ getLateralDistanceToCenterline(
+-  const lanelet::ConstLanelet & lanelet, const geometry_msgs::msg::Pose & pose);
++  const lanelet::ConstLanelet & lanelet, const Eigen::Vector4d & pose);  // x,y,z,yaw
+ 
+ [[deprecated("please use autoware::lanelet2_utils::get_lateral_distance_to_centerline instead")]]
+ double getLateralDistanceToClosestLanelet(
+-  const lanelet::ConstLanelets & lanelet_sequence, const geometry_msgs::msg::Pose & pose);
++  const lanelet::ConstLanelets & lanelet_sequence, const Eigen::Vector4d & pose);  // x,y,z,yaw
+ }  // namespace lanelet::utils
+ 
+ // NOLINTEND(readability-identifier-naming)
+diff --git a/autoware_lanelet2_extension/include/autoware_lanelet2_extension/visualization/visualization.hpp b/autoware_lanelet2_extension/include/autoware_lanelet2_extension/visualization/visualization.hpp
+index 8428bed..bb1acdd 100644
+--- a/autoware_lanelet2_extension/include/autoware_lanelet2_extension/visualization/visualization.hpp
++++ b/autoware_lanelet2_extension/include/autoware_lanelet2_extension/visualization/visualization.hpp
+@@ -27,8 +27,8 @@
+ 
+ #include <rclcpp/rclcpp.hpp>
+ 
+-#include <geometry_msgs/msg/polygon.hpp>
+-#include <visualization_msgs/msg/marker_array.hpp>
++//#include <geometry_msgs/msg/polygon.hpp>
++//#include <visualization_msgs/msg/marker_array.hpp>
+ 
+ #include <lanelet2_core/LaneletMap.h>
+ #include <lanelet2_core/primitives/Area.h>
+diff --git a/autoware_lanelet2_extension/lib/deprecated.cpp b/autoware_lanelet2_extension/lib/deprecated.cpp
+index 7a78e45..57441d0 100644
+--- a/autoware_lanelet2_extension/lib/deprecated.cpp
++++ b/autoware_lanelet2_extension/lib/deprecated.cpp
+@@ -20,10 +20,6 @@
+ 
+ #include "deprecated.hpp"
+ 
+-#include <tf2/utils.hpp>
+-
+-#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+-
+ #include <lanelet2_core/geometry/Lanelet.h>
+ 
+ #include <algorithm>
+@@ -186,10 +182,9 @@ lanelet::ConstLineString3d getClosestSegment(
+   return closest_segment;
+ }
+ 
+-double getLaneletAngle(
+-  const lanelet::ConstLanelet & lanelet, const geometry_msgs::msg::Point & search_point)
++double getLaneletAngle(const lanelet::ConstLanelet & lanelet, const Eigen::Vector4d & search_point)
+ {
+-  lanelet::BasicPoint2d llt_search_point(search_point.x, search_point.y);
++  lanelet::BasicPoint2d llt_search_point(search_point.x(), search_point.y());
+   lanelet::ConstLineString3d segment = getClosestSegment(llt_search_point, lanelet.centerline());
+   return std::atan2(
+     segment.back().y() - segment.front().y(), segment.back().x() - segment.front().x());
+@@ -211,11 +206,10 @@ lanelet::ConstLanelets getLaneletsWithinRange(
+ }
+ 
+ lanelet::ConstLanelets getLaneletsWithinRange(
+-  const lanelet::ConstLanelets & lanelets, const geometry_msgs::msg::Point & search_point,
+-  const double range)
++  const lanelet::ConstLanelets & lanelets, const Eigen::Vector3d & search_point, const double range)
+ {
+   return getLaneletsWithinRange(
+-    lanelets, lanelet::BasicPoint2d(search_point.x, search_point.y), range);
++    lanelets, lanelet::BasicPoint2d(search_point.x(), search_point.y()), range);
+ }
+ 
+ lanelet::ConstLanelets getAllNeighborsRight(
+@@ -268,7 +262,7 @@ lanelet::ConstLanelets getLaneChangeableNeighbors(
+ }
+ 
+ bool getClosestLanelet(
+-  const lanelet::ConstLanelets & lanelets, const geometry_msgs::msg::Pose & search_pose,
++  const lanelet::ConstLanelets & lanelets, const Eigen::Vector4d & search_pose,  // x,y,z,yaw
+   lanelet::ConstLanelet * closest_lanelet_ptr)
+ {
+   if (closest_lanelet_ptr == nullptr) {
+@@ -283,7 +277,7 @@ bool getClosestLanelet(
+ 
+   bool found = false;
+ 
+-  lanelet::BasicPoint2d search_point(search_pose.position.x, search_pose.position.y);
++  lanelet::BasicPoint2d search_point(search_pose.x(), search_pose.y());  // x,y
+ 
+   // find by distance
+   lanelet::ConstLanelets candidate_lanelets;
+@@ -312,14 +306,14 @@ bool getClosestLanelet(
+   // find by angle
+   {
+     double min_angle = std::numeric_limits<double>::max();
+-    double pose_yaw = tf2::getYaw(search_pose.orientation);
++    double pose_yaw = search_pose.w();
+     for (const auto & llt : candidate_lanelets) {
+       lanelet::ConstLineString3d segment = getClosestSegment(search_point, llt.centerline());
+       double angle_diff = M_PI;
+       if (!segment.empty()) {
+         double segment_angle = std::atan2(
+           segment.back().y() - segment.front().y(), segment.back().x() - segment.front().x());
+-        angle_diff = std::abs(normalize_radian(segment_angle - pose_yaw));
++        angle_diff = std::abs(deprecated::normalize_radian(segment_angle - pose_yaw));
+       }
+       if (angle_diff < min_angle) {
+         min_angle = angle_diff;
+@@ -332,12 +326,11 @@ bool getClosestLanelet(
+ }
+ 
+ double getLateralDistanceToCenterline(
+-  const lanelet::ConstLanelet & lanelet, const geometry_msgs::msg::Pose & pose)
++  const lanelet::ConstLanelet & lanelet, const Eigen::Vector4d & pose)
+ {
+   const auto & centerline_2d = lanelet::utils::to2D(lanelet.centerline());
+-  const auto lanelet_point = toLaneletPoint(pose.position);
+-  return lanelet::geometry::signedDistance(
+-    centerline_2d, lanelet::utils::to2D(lanelet_point).basicPoint());
++  const lanelet::BasicPoint2d lanelet_point_2d(pose.x(), pose.y());
++  return lanelet::geometry::signedDistance(centerline_2d, lanelet_point_2d);
+ }
+ 
+ lanelet::ConstLanelet combineLaneletsShape(const lanelet::ConstLanelets & lanelets)
+@@ -390,16 +383,10 @@ lanelet::ConstLanelet getExpandedLanelet(
+   auto expanded_left_bound_2d = offsetNoThrow(orig_left_bound_2d, left_offset);
+   auto expanded_right_bound_2d = offsetNoThrow(orig_right_bound_2d, right_offset);
+ 
+-  rclcpp::Clock clock{RCL_ROS_TIME};
+-  try {
+-    checkForInversion(orig_left_bound_2d, expanded_left_bound_2d, left_offset);
+-    checkForInversion(orig_right_bound_2d, expanded_right_bound_2d, right_offset);
+-  } catch (const lanelet::GeometryError & e) {
+-    RCLCPP_ERROR_THROTTLE(
+-      rclcpp::get_logger("autoware_lanelet2_extension"), clock, 1000,
+-      "Fail to expand lanelet. output may be undesired. Lanelet points interval in map data could "
+-      "be too narrow.");
+-  }
++
++  checkForInversion(orig_left_bound_2d, expanded_left_bound_2d, left_offset);
++  checkForInversion(orig_right_bound_2d, expanded_right_bound_2d, right_offset);
++
+ 
+   // Note: modify front and back points so that the successive lanelets will not have any
+   // longitudinal space between them.
+@@ -451,69 +438,6 @@ lanelet::ConstLanelet getExpandedLanelet(
+   return lanelet;
+ }
+ 
+-void toGeomMsgPt(const geometry_msgs::msg::Point32 & src, geometry_msgs::msg::Point * dst)
+-{
+-  if (dst == nullptr) {
+-    std::cerr << __FUNCTION__ << "pointer is null!";
+-    return;
+-  }
+-  dst->x = src.x;
+-  dst->y = src.y;
+-  dst->z = src.z;
+-}
+-void toGeomMsgPt(const Eigen::Vector3d & src, geometry_msgs::msg::Point * dst)
+-{
+-  if (dst == nullptr) {
+-    std::cerr << __FUNCTION__ << "pointer is null!";
+-    return;
+-  }
+-  dst->x = src.x();
+-  dst->y = src.y();
+-  dst->z = src.z();
+-}
+-void toGeomMsgPt(const lanelet::ConstPoint3d & src, geometry_msgs::msg::Point * dst)
+-{
+-  if (dst == nullptr) {
+-    std::cerr << __FUNCTION__ << "pointer is null!";
+-    return;
+-  }
+-  dst->x = src.x();
+-  dst->y = src.y();
+-  dst->z = src.z();
+-}
+-void toGeomMsgPt(const lanelet::ConstPoint2d & src, geometry_msgs::msg::Point * dst)
+-{
+-  if (dst == nullptr) {
+-    std::cerr << __FUNCTION__ << "pointer is null!" << std::endl;
+-    return;
+-  }
+-  dst->x = src.x();
+-  dst->y = src.y();
+-  dst->z = 0;
+-}
+-
+-void toGeomMsgPt32(const Eigen::Vector3d & src, geometry_msgs::msg::Point32 * dst)
+-{
+-  if (dst == nullptr) {
+-    std::cerr << __FUNCTION__ << "pointer is null!" << std::endl;
+-    return;
+-  }
+-  dst->x = static_cast<float>(src.x());
+-  dst->y = static_cast<float>(src.y());
+-  dst->z = static_cast<float>(src.z());
+-}
+-
+-void toLaneletPoint(const geometry_msgs::msg::Point & src, lanelet::ConstPoint3d * dst)
+-{
+-  *dst = lanelet::Point3d(lanelet::InvalId, src.x, src.y, src.z);
+-}
+-
+-lanelet::ConstPoint3d toLaneletPoint(const geometry_msgs::msg::Point & src)
+-{
+-  lanelet::ConstPoint3d dst;
+-  toLaneletPoint(src, &dst);
+-  return dst;
+-}
+ 
+ lanelet::LineString3d generateFineCenterline(
+   const lanelet::ConstLanelet & lanelet_obj, const double resolution)
+diff --git a/autoware_lanelet2_extension/lib/deprecated.hpp b/autoware_lanelet2_extension/lib/deprecated.hpp
+index aa33d93..2e497b0 100644
+--- a/autoware_lanelet2_extension/lib/deprecated.hpp
++++ b/autoware_lanelet2_extension/lib/deprecated.hpp
+@@ -19,10 +19,6 @@
+ #ifndef AUTOWARE_LANELET2_EXTENSION__LIB__DEPRECATED_HPP_
+ #define AUTOWARE_LANELET2_EXTENSION__LIB__DEPRECATED_HPP_
+ 
+-#include <geometry_msgs/msg/point.hpp>
+-#include <geometry_msgs/msg/point32.hpp>
+-#include <geometry_msgs/msg/pose.hpp>
+-
+ #include <lanelet2_core/primitives/Lanelet.h>
+ #include <lanelet2_routing/RoutingGraph.h>
+ 
+@@ -46,15 +42,14 @@ inline double normalize_radian(const double rad)
+ lanelet::ConstLineString3d getClosestSegment(
+   const lanelet::BasicPoint2d & search_pt, const lanelet::ConstLineString3d & linestring);
+ 
+-double getLaneletAngle(
+-  const lanelet::ConstLanelet & lanelet, const geometry_msgs::msg::Point & search_point);
++double getLaneletAngle(const lanelet::ConstLanelet & lanelet, const Eigen::Vector4d & search_point);
+ 
+ lanelet::ConstLanelets getLaneletsWithinRange(
+   const lanelet::ConstLanelets & lanelets, const lanelet::BasicPoint2d & search_point,
+   const double range);
+ 
+ lanelet::ConstLanelets getLaneletsWithinRange(
+-  const lanelet::ConstLanelets & lanelets, const geometry_msgs::msg::Point & search_point,
++  const lanelet::ConstLanelets & lanelets, const Eigen::Vector3d & search_point,
+   const double range);
+ 
+ lanelet::ConstLanelets getAllNeighborsRight(
+@@ -70,31 +65,17 @@ lanelet::ConstLanelets getLaneChangeableNeighbors(
+   const lanelet::routing::RoutingGraphPtr & graph, const lanelet::ConstLanelet & lanelet);
+ 
+ bool getClosestLanelet(
+-  const lanelet::ConstLanelets & lanelets, const geometry_msgs::msg::Pose & search_pose,
++  const lanelet::ConstLanelets & lanelets, const Eigen::Vector4d & search_pose,  // x,y,z,yaw
+   lanelet::ConstLanelet * closest_lanelet_ptr);
+ 
+ double getLateralDistanceToCenterline(
+-  const lanelet::ConstLanelet & lanelet, const geometry_msgs::msg::Pose & pose);
++  const lanelet::ConstLanelet & lanelet, const Eigen::Vector4d & pose);  // x,y,z,yaw
+ 
+ lanelet::ConstLanelet combineLaneletsShape(const lanelet::ConstLanelets & lanelets);
+ 
+ lanelet::ConstLanelet getExpandedLanelet(
+   const lanelet::ConstLanelet & lanelet_obj, const double left_offset, const double right_offset);
+ 
+-void toGeomMsgPt(const geometry_msgs::msg::Point32 & src, geometry_msgs::msg::Point * dst);
+-
+-void toGeomMsgPt(const Eigen::Vector3d & src, geometry_msgs::msg::Point * dst);
+-
+-void toGeomMsgPt(const lanelet::ConstPoint3d & src, geometry_msgs::msg::Point * dst);
+-
+-void toGeomMsgPt(const lanelet::ConstPoint2d & src, geometry_msgs::msg::Point * dst);
+-
+-void toGeomMsgPt32(const Eigen::Vector3d & src, geometry_msgs::msg::Point32 * dst);
+-
+-void toLaneletPoint(const geometry_msgs::msg::Point & src, lanelet::ConstPoint3d * dst);
+-
+-lanelet::ConstPoint3d toLaneletPoint(const geometry_msgs::msg::Point & src);
+-
+ lanelet::LineString3d generateFineCenterline(
+   const lanelet::ConstLanelet & lanelet_obj, const double resolution = 5.0);
+ }  // namespace deprecated
+diff --git a/autoware_lanelet2_extension/lib/landmark.cpp b/autoware_lanelet2_extension/lib/landmark.cpp
+deleted file mode 100644
+index de3585f..0000000
+--- a/autoware_lanelet2_extension/lib/landmark.cpp
++++ /dev/null
+@@ -1,79 +0,0 @@
+-// Copyright 2023 Autoware Foundation
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License");
+-// you may not use this file except in compliance with the License.
+-// You may obtain a copy of the License at
+-//
+-//     http://www.apache.org/licenses/LICENSE-2.0
+-//
+-// Unless required by applicable law or agreed to in writing, software
+-// distributed under the License is distributed on an "AS IS" BASIS,
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-// See the License for the specific language governing permissions and
+-// limitations under the License.
+-
+-#include "autoware_lanelet2_extension/localization/landmark.hpp"
+-
+-#include <Eigen/Core>
+-
+-#include <boost/archive/binary_iarchive.hpp>
+-
+-#include <lanelet2_core/LaneletMap.h>
+-#include <lanelet2_io/io_handlers/Serialize.h>
+-
+-#include <iostream>
+-#include <sstream>
+-#include <string>
+-#include <vector>
+-
+-namespace impl
+-{
+-static void fromBinMsg(
+-  const autoware_map_msgs::msg::LaneletMapBin & msg, lanelet::LaneletMapPtr map)
+-{
+-  if (!map) {
+-    std::cerr << __FUNCTION__ << ": map is null pointer!";
+-    return;
+-  }
+-
+-  std::string data_str;
+-  data_str.assign(msg.data.begin(), msg.data.end());
+-
+-  std::stringstream ss;
+-  ss << data_str;
+-  boost::archive::binary_iarchive oa(ss);
+-  oa >> *map;
+-  lanelet::Id id_counter = 0;
+-  oa >> id_counter;
+-  lanelet::utils::registerId(id_counter);
+-}
+-}  // namespace impl
+-
+-namespace lanelet::localization
+-{
+-
+-std::vector<lanelet::Polygon3d> parseLandmarkPolygons(
+-  const autoware_map_msgs::msg::LaneletMapBin::ConstSharedPtr & msg,
+-  const std::string & target_subtype)
+-{
+-  lanelet::LaneletMapPtr lanelet_map_ptr{std::make_shared<lanelet::LaneletMap>()};
+-  ::impl::fromBinMsg(*msg, lanelet_map_ptr);
+-
+-  std::vector<lanelet::Polygon3d> landmarks;
+-
+-  for (const auto & poly : lanelet_map_ptr->polygonLayer) {
+-    const std::string type{poly.attributeOr(lanelet::AttributeName::Type, "none")};
+-    if (type != "pose_marker") {
+-      continue;
+-    }
+-    const std::string subtype{poly.attributeOr(lanelet::AttributeName::Subtype, "none")};
+-    if (subtype != target_subtype) {
+-      continue;
+-    }
+-    landmarks.push_back(poly);
+-  }
+-
+-  return landmarks;
+-}
+-
+-}  // namespace lanelet::localization
+diff --git a/autoware_lanelet2_extension/lib/message_conversion.cpp b/autoware_lanelet2_extension/lib/message_conversion.cpp
+deleted file mode 100644
+index 64934f7..0000000
+--- a/autoware_lanelet2_extension/lib/message_conversion.cpp
++++ /dev/null
+@@ -1,197 +0,0 @@
+-// Copyright 2015-2019 Autoware Foundation. All rights reserved.
+-//
+-// Licensed under the Apache License, Version 2.0 (the "License");
+-// you may not use this file except in compliance with the License.
+-// You may obtain a copy of the License at
+-//
+-//     http://www.apache.org/licenses/LICENSE-2.0
+-//
+-// Unless required by applicable law or agreed to in writing, software
+-// distributed under the License is distributed on an "AS IS" BASIS,
+-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-// See the License for the specific language governing permissions and
+-// limitations under the License.
+-//
+-// Authors: Simon Thompson, Ryohsuke Mitsudome
+-
+-// NOLINTBEGIN(readability-identifier-naming)
+-
+-#include "autoware_lanelet2_extension/utility/message_conversion.hpp"
+-
+-#include "autoware_lanelet2_extension/projection/mgrs_projector.hpp"
+-#include "deprecated.hpp"
+-
+-#include <boost/archive/binary_iarchive.hpp>
+-#include <boost/archive/binary_oarchive.hpp>
+-
+-#include <lanelet2_core/LaneletMap.h>
+-#include <lanelet2_core/primitives/Lanelet.h>
+-#include <lanelet2_io/Exceptions.h>
+-#include <lanelet2_io/Projection.h>
+-#include <lanelet2_io/io_handlers/OsmFile.h>
+-#include <lanelet2_io/io_handlers/OsmHandler.h>
+-#include <lanelet2_io/io_handlers/Serialize.h>
+-#include <lanelet2_projection/UTM.h>
+-#include <lanelet2_routing/RoutingGraph.h>
+-
+-#include <iostream>
+-#include <memory>
+-#include <sstream>
+-#include <string>
+-#include <utility>
+-
+-namespace deprecated
+-{
+-void fromBinMsg(const autoware_map_msgs::msg::LaneletMapBin & msg, lanelet::LaneletMapPtr map)
+-{
+-  if (!map) {
+-    std::cerr << __FUNCTION__ << ": map is null pointer!";
+-    return;
+-  }
+-
+-  std::string data_str;
+-  data_str.assign(msg.data.begin(), msg.data.end());
+-
+-  std::stringstream ss;
+-  ss << data_str;
+-  boost::archive::binary_iarchive oa(ss);
+-  oa >> *map;
+-  lanelet::Id id_counter = 0;
+-  oa >> id_counter;
+-  lanelet::utils::registerId(id_counter);
+-}
+-
+-void fromBinMsg(
+-  const autoware_map_msgs::msg::LaneletMapBin & msg, lanelet::LaneletMapPtr map,
+-  lanelet::traffic_rules::TrafficRulesPtr * traffic_rules,
+-  lanelet::routing::RoutingGraphPtr * routing_graph)
+-{
+-  fromBinMsg(msg, map);
+-  *traffic_rules = lanelet::traffic_rules::TrafficRulesFactory::create(
+-    lanelet::Locations::Germany, lanelet::Participants::Vehicle);
+-  *routing_graph = lanelet::routing::RoutingGraph::build(*map, **traffic_rules);
+-}
+-}  // namespace deprecated
+-
+-namespace lanelet::utils::conversion
+-{
+-void toBinMsg(const lanelet::LaneletMapPtr & map, autoware_map_msgs::msg::LaneletMapBin * msg)
+-{
+-  if (msg == nullptr) {
+-    std::cerr << __FUNCTION__ << "msg is null pointer!";
+-    return;
+-  }
+-
+-  std::stringstream ss;
+-  boost::archive::binary_oarchive oa(ss);
+-  oa << *map;
+-  auto id_counter = lanelet::utils::getId();
+-  oa << id_counter;
+-
+-  std::string data_str(ss.str());
+-
+-  msg->data.clear();
+-  msg->data.assign(data_str.begin(), data_str.end());
+-}
+-
+-void fromBinMsg(const autoware_map_msgs::msg::LaneletMapBin & msg, lanelet::LaneletMapPtr map)
+-{
+-  if (!map) {
+-    std::cerr << __FUNCTION__ << ": map is null pointer!";
+-    return;
+-  }
+-
+-  std::string data_str;
+-  data_str.assign(msg.data.begin(), msg.data.end());
+-
+-  std::stringstream ss;
+-  ss << data_str;
+-  boost::archive::binary_iarchive oa(ss);
+-  oa >> *map;
+-  lanelet::Id id_counter = 0;
+-  oa >> id_counter;
+-  lanelet::utils::registerId(id_counter);
+-  // *map = std::move(laneletMap);
+-}
+-
+-void fromBinMsg(
+-  const autoware_map_msgs::msg::LaneletMapBin & msg, lanelet::LaneletMapPtr map,
+-  lanelet::traffic_rules::TrafficRulesPtr * traffic_rules,
+-  lanelet::routing::RoutingGraphPtr * routing_graph)
+-{
+-  deprecated::fromBinMsg(msg, map);
+-  *traffic_rules = lanelet::traffic_rules::TrafficRulesFactory::create(
+-    lanelet::Locations::Germany, lanelet::Participants::Vehicle);
+-  *routing_graph = lanelet::routing::RoutingGraph::build(*map, **traffic_rules);
+-}
+-
+-void toGeomMsgPt(const geometry_msgs::msg::Point32 & src, geometry_msgs::msg::Point * dst)
+-{
+-  deprecated::toGeomMsgPt(src, dst);
+-}
+-void toGeomMsgPt(const Eigen::Vector3d & src, geometry_msgs::msg::Point * dst)
+-{
+-  deprecated::toGeomMsgPt(src, dst);
+-}
+-void toGeomMsgPt(const lanelet::ConstPoint3d & src, geometry_msgs::msg::Point * dst)
+-{
+-  deprecated::toGeomMsgPt(src, dst);
+-}
+-void toGeomMsgPt(const lanelet::ConstPoint2d & src, geometry_msgs::msg::Point * dst)
+-{
+-  deprecated::toGeomMsgPt(src, dst);
+-}
+-void toGeomMsgPt32(const Eigen::Vector3d & src, geometry_msgs::msg::Point32 * dst)
+-{
+-  deprecated::toGeomMsgPt32(src, dst);
+-}
+-
+-geometry_msgs::msg::Point toGeomMsgPt(const geometry_msgs::msg::Point32 & src)
+-{
+-  geometry_msgs::msg::Point dst;
+-  deprecated::toGeomMsgPt(src, &dst);
+-  return dst;
+-}
+-geometry_msgs::msg::Point toGeomMsgPt(const Eigen::Vector3d & src)
+-{
+-  geometry_msgs::msg::Point dst;
+-  deprecated::toGeomMsgPt(src, &dst);
+-  return dst;
+-}
+-geometry_msgs::msg::Point toGeomMsgPt(const lanelet::ConstPoint3d & src)
+-{
+-  geometry_msgs::msg::Point dst;
+-  deprecated::toGeomMsgPt(src, &dst);
+-  return dst;
+-}
+-geometry_msgs::msg::Point toGeomMsgPt(const lanelet::ConstPoint2d & src)
+-{
+-  geometry_msgs::msg::Point dst;
+-  deprecated::toGeomMsgPt(src, &dst);
+-  return dst;
+-}
+-
+-lanelet::ConstPoint3d toLaneletPoint(const geometry_msgs::msg::Point & src)
+-{
+-  return deprecated::toLaneletPoint(src);
+-}
+-
+-void toLaneletPoint(const geometry_msgs::msg::Point & src, lanelet::ConstPoint3d * dst)
+-{
+-  deprecated::toLaneletPoint(src, dst);
+-}
+-
+-void toGeomMsgPoly(const lanelet::ConstPolygon3d & ll_poly, geometry_msgs::msg::Polygon * geom_poly)
+-{
+-  geom_poly->points.clear();
+-  geom_poly->points.reserve(ll_poly.size());
+-  for (const auto & ll_pt : ll_poly) {
+-    geometry_msgs::msg::Point32 geom_pt32;
+-    deprecated::toGeomMsgPt32(ll_pt.basicPoint(), &geom_pt32);
+-    geom_poly->points.push_back(geom_pt32);
+-  }
+-}
+-
+-}  // namespace lanelet::utils::conversion
+-
+-// NOLINTEND(readability-identifier-naming)
+diff --git a/autoware_lanelet2_extension/lib/query.cpp b/autoware_lanelet2_extension/lib/query.cpp
+index 4bd0427..27b42b6 100644
+--- a/autoware_lanelet2_extension/lib/query.cpp
++++ b/autoware_lanelet2_extension/lib/query.cpp
+@@ -27,10 +27,6 @@
+ #include "autoware_lanelet2_extension/regulatory_elements/no_stopping_area.hpp"
+ #include "autoware_lanelet2_extension/regulatory_elements/speed_bump.hpp"
+ 
+-#include <tf2/utils.hpp>
+-
+-#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+-
+ #include <lanelet2_core/LaneletMap.h>
+ #include <lanelet2_core/geometry/Lanelet.h>
+ #include <lanelet2_core/primitives/Lanelet.h>
+@@ -816,11 +812,10 @@ ConstLanelets query::getLaneletsWithinRange(
+ }
+ 
+ ConstLanelets query::getLaneletsWithinRange(
+-  const lanelet::ConstLanelets & lanelets, const geometry_msgs::msg::Point & search_point,
+-  const double range)
++  const lanelet::ConstLanelets & lanelets, const Eigen::Vector3d & search_point, const double range)
+ {
+-  return deprecated::getLaneletsWithinRange(
+-    lanelets, lanelet::BasicPoint2d(search_point.x, search_point.y), range);
++  return getLaneletsWithinRange(
++    lanelets, lanelet::BasicPoint2d(search_point.x(), search_point.y()), range);
+ }
+ 
+ ConstLanelets query::getLaneChangeableNeighbors(
+@@ -831,10 +826,10 @@ ConstLanelets query::getLaneChangeableNeighbors(
+ 
+ ConstLanelets query::getLaneChangeableNeighbors(
+   const routing::RoutingGraphPtr & graph, const ConstLanelets & road_lanelets,
+-  const geometry_msgs::msg::Point & search_point)
++  const Eigen::Vector3d & search_point)
+ {
+-  const auto lanelets = deprecated::getLaneletsWithinRange(
+-    road_lanelets, search_point, std::numeric_limits<double>::epsilon());
++  const auto lanelets =
++    getLaneletsWithinRange(road_lanelets, search_point, std::numeric_limits<double>::epsilon());
+   ConstLanelets road_slices;
+   for (const auto & llt : lanelets) {
+     const auto tmp_road_slice = deprecated::getLaneChangeableNeighbors(graph, llt);
+@@ -888,7 +883,7 @@ ConstLanelets query::getAllNeighborsLeft(
+ 
+ ConstLanelets query::getAllNeighbors(
+   const routing::RoutingGraphPtr & graph, const ConstLanelets & road_lanelets,
+-  const geometry_msgs::msg::Point & search_point)
++  const Eigen::Vector3d & search_point)
+ {
+   const auto lanelets = deprecated::getLaneletsWithinRange(
+     road_lanelets, search_point, std::numeric_limits<double>::epsilon());
+@@ -901,7 +896,7 @@ ConstLanelets query::getAllNeighbors(
+ }
+ 
+ bool query::getClosestLanelet(
+-  const ConstLanelets & lanelets, const geometry_msgs::msg::Pose & search_pose,
++  const ConstLanelets & lanelets, const Eigen::Vector4d & search_pose,
+   ConstLanelet * closest_lanelet_ptr)
+ {
+   if (closest_lanelet_ptr == nullptr) {
+@@ -916,7 +911,7 @@ bool query::getClosestLanelet(
+ 
+   bool found = false;
+ 
+-  lanelet::BasicPoint2d search_point(search_pose.position.x, search_pose.position.y);
++  lanelet::BasicPoint2d search_point(search_pose.x(), search_pose.y());
+ 
+   // find by distance
+   lanelet::ConstLanelets candidate_lanelets;
+@@ -945,10 +940,9 @@ bool query::getClosestLanelet(
+   // find by angle
+   {
+     double min_angle = std::numeric_limits<double>::max();
+-    double pose_yaw = tf2::getYaw(search_pose.orientation);
++    double pose_yaw = search_pose.w();
+     for (const auto & llt : candidate_lanelets) {
+-      lanelet::ConstLineString3d segment =
+-        deprecated::getClosestSegment(search_point, llt.centerline());
++      lanelet::ConstLineString3d segment = deprecated::getClosestSegment(search_point, llt.centerline());
+       double angle_diff = M_PI;
+       if (!segment.empty()) {
+         double segment_angle = std::atan2(
+@@ -966,7 +960,7 @@ bool query::getClosestLanelet(
+ }
+ 
+ bool query::getClosestLaneletWithConstrains(
+-  const ConstLanelets & lanelets, const geometry_msgs::msg::Pose & search_pose,
++  const ConstLanelets & lanelets, const Eigen::Vector4d & search_pose,
+   ConstLanelet * closest_lanelet_ptr, const double dist_threshold, const double yaw_threshold)
+ {
+   bool found = false;
+@@ -981,7 +975,7 @@ bool query::getClosestLaneletWithConstrains(
+     return found;
+   }
+ 
+-  lanelet::BasicPoint2d search_point(search_pose.position.x, search_pose.position.y);
++  lanelet::BasicPoint2d search_point(search_pose.x(), search_pose.y());
+ 
+   // find by distance
+   std::vector<std::pair<lanelet::ConstLanelet, double>> candidate_lanelets;
+@@ -1010,11 +1004,11 @@ bool query::getClosestLaneletWithConstrains(
+   {
+     double min_angle = std::numeric_limits<double>::max();
+     double min_distance = std::numeric_limits<double>::max();
+-    double pose_yaw = tf2::getYaw(search_pose.orientation);
++    double pose_yaw = search_pose.w();
+     for (const auto & llt_pair : candidate_lanelets) {
+       const auto & distance = llt_pair.second;
+ 
+-      double lanelet_angle = deprecated::getLaneletAngle(llt_pair.first, search_pose.position);
++      double lanelet_angle = deprecated::getLaneletAngle(llt_pair.first, search_pose);
+       double angle_diff = std::abs(deprecated::normalize_radian(lanelet_angle - pose_yaw));
+ 
+       if (angle_diff > std::abs(yaw_threshold)) continue;
+@@ -1033,7 +1027,7 @@ bool query::getClosestLaneletWithConstrains(
+ }
+ 
+ bool query::getCurrentLanelets(
+-  const ConstLanelets & lanelets, const geometry_msgs::msg::Point & search_point,
++  const ConstLanelets & lanelets, const Eigen::Vector3d & search_point,
+   ConstLanelets * current_lanelets_ptr)
+ {
+   if (current_lanelets_ptr == nullptr) {
+@@ -1046,7 +1040,7 @@ bool query::getCurrentLanelets(
+     return false;
+   }
+ 
+-  lanelet::BasicPoint2d search_point_2d(search_point.x, search_point.y);
++  lanelet::BasicPoint2d search_point_2d(search_point.x(), search_point.y());
+   for (const auto & llt : lanelets) {
+     if (lanelet::geometry::inside(llt, search_point_2d)) {
+       current_lanelets_ptr->push_back(llt);
+@@ -1057,7 +1051,7 @@ bool query::getCurrentLanelets(
+ }
+ 
+ bool query::getCurrentLanelets(
+-  const ConstLanelets & lanelets, const geometry_msgs::msg::Pose & search_pose,
++  const ConstLanelets & lanelets, const Eigen::Vector4d & search_pose,  // x,y,z,yaw
+   ConstLanelets * current_lanelets_ptr)
+ {
+   if (current_lanelets_ptr == nullptr) {
+@@ -1070,7 +1064,7 @@ bool query::getCurrentLanelets(
+     return false;
+   }
+ 
+-  lanelet::BasicPoint2d search_point(search_pose.position.x, search_pose.position.y);
++  lanelet::BasicPoint2d search_point(search_pose.x(), search_pose.y());
+   for (const auto & llt : lanelets) {
+     if (lanelet::geometry::inside(llt, search_point)) {
+       current_lanelets_ptr->push_back(llt);
+diff --git a/autoware_lanelet2_extension/lib/utilities.cpp b/autoware_lanelet2_extension/lib/utilities.cpp
+index 7b20124..8295276 100644
+--- a/autoware_lanelet2_extension/lib/utilities.cpp
++++ b/autoware_lanelet2_extension/lib/utilities.cpp
+@@ -19,14 +19,8 @@
+ #include "autoware_lanelet2_extension/utility/utilities.hpp"
+ 
+ #include "./deprecated.hpp"
+-#include "autoware_lanelet2_extension/utility/message_conversion.hpp"
+ #include "autoware_lanelet2_extension/utility/query.hpp"
+ 
+-#include <rclcpp/rclcpp.hpp>
+-#include <tf2/utils.hpp>
+-
+-#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+-
+ #include <lanelet2_core/geometry/Lanelet.h>
+ #include <lanelet2_core/geometry/LineString.h>
+ #include <lanelet2_core/geometry/Point.h>
+@@ -440,16 +434,8 @@ lanelet::ConstLanelet getExpandedLanelet(
+   auto expanded_left_bound_2d = offsetNoThrow(orig_left_bound_2d, left_offset);
+   auto expanded_right_bound_2d = offsetNoThrow(orig_right_bound_2d, right_offset);
+ 
+-  rclcpp::Clock clock{RCL_ROS_TIME};
+-  try {
+-    checkForInversion(orig_left_bound_2d, expanded_left_bound_2d, left_offset);
+-    checkForInversion(orig_right_bound_2d, expanded_right_bound_2d, right_offset);
+-  } catch (const lanelet::GeometryError & e) {
+-    RCLCPP_ERROR_THROTTLE(
+-      rclcpp::get_logger("autoware_lanelet2_extension"), clock, 1000,
+-      "Fail to expand lanelet. output may be undesired. Lanelet points interval in map data could "
+-      "be too narrow.");
+-  }
++  checkForInversion(orig_left_bound_2d, expanded_left_bound_2d, left_offset);
++  checkForInversion(orig_right_bound_2d, expanded_right_bound_2d, right_offset);
+ 
+   // Note: modify front and back points so that the successive lanelets will not have any
+   // longitudinal space between them.
+@@ -601,18 +587,15 @@ bool lineStringToPolygon(
+   const lanelet::ConstLineString3d & linestring, lanelet::ConstPolygon3d * polygon)
+ {
+   if (polygon == nullptr) {
+-    RCLCPP_ERROR_STREAM(
+-      rclcpp::get_logger("autoware_lanelet2_extension.visualization"),
+-      __func__ << ": polygon is null pointer! Failed to convert to polygon.");
++    std::cerr << __func__ << ": polygon is null pointer! Failed to convert to polygon."
++              << std::endl;
+     return false;
+   }
+   if (linestring.size() < 4) {
+     if (linestring.size() < 3 || linestring.front().id() == linestring.back().id()) {
+-      RCLCPP_WARN_STREAM(
+-        rclcpp::get_logger("autoware_lanelet2_extension.visualization"),
+-        __func__ << ": linestring" << linestring.id()
+-                 << " must have more than different 3 points! (size is " << linestring.size()
+-                 << "). Failed to convert to polygon.");
++      std::cerr << __func__ << ": linestring" << linestring.id()
++                << " must have more than different 3 points! (size is " << linestring.size()
++                << "). Failed to convert to polygon." << std::endl;
+       return false;
+     }
+   }
+@@ -664,7 +647,7 @@ double getLaneletLength3d(const lanelet::ConstLanelets & lanelet_sequence)
+ }
+ 
+ lanelet::ArcCoordinates getArcCoordinates(
+-  const lanelet::ConstLanelets & lanelet_sequence, const geometry_msgs::msg::Pose & pose)
++  const lanelet::ConstLanelets & lanelet_sequence, const Eigen::Vector4d & pose)
+ {
+   lanelet::ConstLanelet closest_lanelet;
+   deprecated::getClosestLanelet(lanelet_sequence, pose, &closest_lanelet);
+@@ -674,9 +657,8 @@ lanelet::ArcCoordinates getArcCoordinates(
+   for (const auto & llt : lanelet_sequence) {
+     const auto & centerline_2d = lanelet::utils::to2D(llt.centerline());
+     if (llt == closest_lanelet) {
+-      const auto lanelet_point = deprecated::toLaneletPoint(pose.position);
+       arc_coordinates = lanelet::geometry::toArcCoordinates(
+-        centerline_2d, lanelet::utils::to2D(lanelet_point).basicPoint());
++        centerline_2d, lanelet::BasicPoint2d(pose.x(), pose.y()));  // x,y
+       arc_coordinates.length += length;
+       break;
+     }
+@@ -686,7 +668,7 @@ lanelet::ArcCoordinates getArcCoordinates(
+ }
+ 
+ lanelet::ArcCoordinates getArcCoordinatesOnEgoCenterline(
+-  const lanelet::ConstLanelets & lanelet_sequence, const geometry_msgs::msg::Pose & pose,
++  const lanelet::ConstLanelets & lanelet_sequence, const Eigen::Vector4d & pose,  // x,y,z,yaw
+   const lanelet::LaneletMapConstPtr & lanelet_map_ptr)
+ {
+   lanelet::ConstLanelet closest_lanelet;
+@@ -704,9 +686,9 @@ lanelet::ArcCoordinates getArcCoordinatesOnEgoCenterline(
+     }
+ 
+     if (llt == closest_lanelet) {
+-      const auto lanelet_point = deprecated::toLaneletPoint(pose.position);
++      const lanelet::BasicPoint2d lanelet_point(pose.x(), pose.y());  // x,y
+       arc_coordinates = lanelet::geometry::toArcCoordinates(
+-        centerline_2d, lanelet::utils::to2D(lanelet_point).basicPoint());
++        centerline_2d, lanelet_point);
+       arc_coordinates.length += length;
+       break;
+     }
+@@ -776,10 +758,9 @@ lanelet::CompoundPolygon3d getPolygonFromArcLength(
+   return lanelet.polygon3d();
+ }
+ 
+-double getLaneletAngle(
+-  const lanelet::ConstLanelet & lanelet, const geometry_msgs::msg::Point & search_point)
++double getLaneletAngle(const lanelet::ConstLanelet & lanelet, const Eigen::Vector4d & search_point)
+ {
+-  lanelet::BasicPoint2d llt_search_point(search_point.x, search_point.y);
++  lanelet::BasicPoint2d llt_search_point(search_point.x(), search_point.y());  // x,y
+   lanelet::ConstLineString3d segment =
+     deprecated::getClosestSegment(llt_search_point, lanelet.centerline());
+   return std::atan2(
+@@ -787,67 +768,62 @@ double getLaneletAngle(
+ }
+ 
+ bool isInLanelet(
+-  const geometry_msgs::msg::Pose & current_pose, const lanelet::ConstLanelet & lanelet,
+-  const double radius)
++  const Eigen::Vector4d & current_pose, const lanelet::ConstLanelet & lanelet, const double radius)
+ {
+   constexpr double eps = 1.0e-9;
+-  const lanelet::BasicPoint2d p(current_pose.position.x, current_pose.position.y);
++  const lanelet::BasicPoint2d p(current_pose.x(), current_pose.y());
+   return boost::geometry::distance(p, lanelet.polygon2d().basicPolygon()) < radius + eps;
+ }
+ 
+-geometry_msgs::msg::Pose getClosestCenterPose(
+-  const lanelet::ConstLanelet & lanelet, const geometry_msgs::msg::Point & search_point)
++Eigen::Vector4d getClosestCenterPose(
++  const lanelet::ConstLanelet & lanelet, const Eigen::Vector3d & search_point)
+ {
+-  lanelet::BasicPoint2d llt_search_point(search_point.x, search_point.y);
++  lanelet::BasicPoint2d llt_search_point(search_point.x(), search_point.y());
+ 
+   if (lanelet.centerline().size() == 1) {
+-    geometry_msgs::msg::Pose closest_pose;
+-    closest_pose.position.x = lanelet.centerline().front().x();
+-    closest_pose.position.y = lanelet.centerline().front().y();
+-    closest_pose.position.z = search_point.z;
+-    closest_pose.orientation.x = 0.0;
+-    closest_pose.orientation.y = 0.0;
+-    closest_pose.orientation.z = 0.0;
+-    closest_pose.orientation.w = 1.0;
++    Eigen::Vector4d closest_pose;
++    closest_pose.x() = lanelet.centerline().front().x();
++    closest_pose.y() = lanelet.centerline().front().y();
++    closest_pose.z() = search_point.z();
++    closest_pose.w() = 0;
+     return closest_pose;
+   }
+ 
+   lanelet::ConstLineString3d segment =
+     deprecated::getClosestSegment(llt_search_point, lanelet.centerline());
+   if (segment.empty()) {
+-    return geometry_msgs::msg::Pose{};
++    return Eigen::Vector4d{};
+   }
+ 
+   const Eigen::Vector2d direction(
+     (segment.back().basicPoint2d() - segment.front().basicPoint2d()).normalized());
+   const Eigen::Vector2d xf(segment.front().basicPoint2d());
+-  const Eigen::Vector2d x(search_point.x, search_point.y);
++  const Eigen::Vector2d x(search_point.x(), search_point.y());
+   const Eigen::Vector2d p = xf + (x - xf).dot(direction) * direction;
+ 
+-  geometry_msgs::msg::Pose closest_pose;
+-  closest_pose.position.x = p.x();
+-  closest_pose.position.y = p.y();
+-  closest_pose.position.z = search_point.z;
+-
+-  const double lane_yaw = deprecated::getLaneletAngle(lanelet, search_point);
+-  tf2::Quaternion q;
+-  q.setRPY(0, 0, lane_yaw);
+-  closest_pose.orientation = tf2::toMsg(q);
+-
++  Eigen::Vector4d closest_pose;
++  closest_pose.x() = p.x();
++  closest_pose.y() = p.y();
++  closest_pose.z() = search_point.z();
++  Eigen::Vector4d extended_search_point;
++  extended_search_point.x() = search_point.x();
++  extended_search_point.y() = search_point.y();
++  extended_search_point.z() = search_point.z();
++  closest_pose.w() = deprecated::getLaneletAngle(lanelet, extended_search_point);
+   return closest_pose;
+ }
+ 
+ double getLateralDistanceToCenterline(
+-  const lanelet::ConstLanelet & lanelet, const geometry_msgs::msg::Pose & pose)
++  const lanelet::ConstLanelet & lanelet, const Eigen::Vector4d & pose)
+ {
+   const auto & centerline_2d = lanelet::utils::to2D(lanelet.centerline());
+-  const auto lanelet_point = deprecated::toLaneletPoint(pose.position);
++  const auto lanelet_point = lanelet::BasicPoint2d(pose.x(), pose.y());  // x,y
+   return lanelet::geometry::signedDistance(
+-    centerline_2d, lanelet::utils::to2D(lanelet_point).basicPoint());
++    centerline_2d, lanelet_point);
+ }
+ 
+ double getLateralDistanceToClosestLanelet(
+-  const lanelet::ConstLanelets & lanelet_sequence, const geometry_msgs::msg::Pose & pose)
++  const lanelet::ConstLanelets & lanelet_sequence, const Eigen::Vector4d & pose)
+ {
+   lanelet::ConstLanelet closest_lanelet;
+   deprecated::getClosestLanelet(lanelet_sequence, pose, &closest_lanelet);
+diff --git a/autoware_lanelet2_extension/package.xml b/autoware_lanelet2_extension/package.xml
+index 451ddee..f2696c6 100644
+--- a/autoware_lanelet2_extension/package.xml
++++ b/autoware_lanelet2_extension/package.xml
+@@ -1,8 +1,8 @@
+ <?xml version="1.0"?>
+ <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+ <package format="3">
+-  <name>autoware_lanelet2_extension</name>
+-  <version>1.1.0</version>
++  <name>lanelet2_extension</name>
++  <version>0.6.2</version>
+   <description>The autoware_lanelet2_extension package contains libraries to handle Lanelet2 format data.</description>
+   <maintainer email="ryohsuke.mitsudome@tier4.jp">mitsudome-r</maintainer>
+   <maintainer email="masahiro.sakamoto@tier4.jp">Masahiro Sakamoto</maintainer>
+@@ -12,11 +12,6 @@
+   <maintainer email="yutaka.kondo@tier4.jp">Yutaka Kondo</maintainer>
+   <license>Apache License 2.0</license>
+ 
+-  <buildtool_depend>ament_cmake_auto</buildtool_depend>
+-  <buildtool_depend>autoware_cmake</buildtool_depend>
+-
+-  <depend>autoware_map_msgs</depend>
+-  <depend>autoware_planning_msgs</depend>
+   <depend>geographiclib</depend>
+   <depend>geometry_msgs</depend>
+   <depend>lanelet2_core</depend>
+@@ -28,14 +23,4 @@
+   <depend>lanelet2_validation</depend>
+   <depend>pugixml-dev</depend>
+   <depend>range-v3</depend>
+-  <depend>rclcpp</depend>
+-  <depend>tf2</depend>
+-  <depend>tf2_geometry_msgs</depend>
+-  <depend>visualization_msgs</depend>
+-
+-  <test_depend>ament_cmake_ros</test_depend>
+-
+-  <export>
+-    <build_type>ament_cmake</build_type>
+-  </export>
+ </package>
+diff --git a/autoware_lanelet2_extension_python/CMakeLists.txt b/autoware_lanelet2_extension_python/CMakeLists.txt
+index c4ad516..03f67e5 100644
+--- a/autoware_lanelet2_extension_python/CMakeLists.txt
++++ b/autoware_lanelet2_extension_python/CMakeLists.txt
+@@ -1,55 +1,175 @@
+ cmake_minimum_required(VERSION 3.14)
+ project(autoware_lanelet2_extension_python)
+ 
+-find_package(autoware_cmake REQUIRED)
+-find_package(python_cmake_module REQUIRED)
++# Set C++ standard
++set(CMAKE_CXX_STANDARD 17)
++set(CMAKE_CXX_STANDARD_REQUIRED ON)
++set(CMAKE_CXX_EXTENSIONS OFF)
+ 
+-autoware_package()
++set(CMAKE_SKIP_BUILD_RPATH FALSE)
++set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
++set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
++set(PYTHON_INSTALL_DIR "lib/python3/dist-packages")
+ 
+-find_package(BoostPython REQUIRED)
++# Add path to custom cmake modules if needed
++list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/")
++
++
++find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
++find_package(Boost REQUIRED COMPONENTS python${Python3_VERSION_MAJOR}${Python3_VERSION_MINOR})
++find_package(Eigen3 REQUIRED)
+ 
+ include_directories(
+-  ${BoostPython_INCLUDE_DIRS}
++  ${Boost_INCLUDE_DIRS}
++  ${Python3_INCLUDE_DIRS}
++  ${EIGEN3_INCLUDE_DIRS}
++)
++
++# Find Lanelet2 components
++# Set paths to Lanelet2 build directories
++set(LANELET2_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../Rosless-Lanelet2")
++
++# Create imported targets for Lanelet2 components
++foreach(comp core io projection routing traffic_rules validation)
++    string(TOUPPER ${comp} COMP_UPPER)
++
++    # Find library - check multiple possible locations
++    find_library(Lanelet2_${COMP_UPPER}_LIBRARY
++        NAMES lanelet2_${comp}
++        PATHS
++            "${CMAKE_INSTALL_PREFIX}/lib"
++            "${LANELET2_ROOT}/build/lanelet2_${comp}"
++            "${LANELET2_ROOT}/build/lib"
++            "${LANELET2_ROOT}/install/lib"
++        NO_DEFAULT_PATH
++    )
+ 
++    # Check for include directory in multiple locations
++    if(EXISTS "${CMAKE_INSTALL_PREFIX}/include/lanelet2_${comp}")
++        set(Lanelet2_${COMP_UPPER}_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include")
++    elseif(EXISTS "${LANELET2_ROOT}/install/include/lanelet2_${comp}")
++        set(Lanelet2_${COMP_UPPER}_INCLUDE_DIR "${LANELET2_ROOT}/install/include")
++    else()
++        set(Lanelet2_${COMP_UPPER}_INCLUDE_DIR "${LANELET2_ROOT}/lanelet2_${comp}/include")
++    endif()
++
++    message(STATUS "Looking for ${comp} in:")
++    message(STATUS "  Library: ${LANELET2_ROOT}/build/lanelet2_${comp}")
++    message(STATUS "  Include: ${Lanelet2_${COMP_UPPER}_INCLUDE_DIR}")
++    message(STATUS "Found library: ${Lanelet2_${COMP_UPPER}_LIBRARY}")
++
++    if(Lanelet2_${COMP_UPPER}_LIBRARY AND EXISTS "${Lanelet2_${COMP_UPPER}_INCLUDE_DIR}")
++        add_library(Lanelet2::${comp} UNKNOWN IMPORTED)
++        set_target_properties(Lanelet2::${comp} PROPERTIES
++            IMPORTED_LOCATION "${Lanelet2_${COMP_UPPER}_LIBRARY}"
++            INTERFACE_INCLUDE_DIRECTORIES "${Lanelet2_${COMP_UPPER}_INCLUDE_DIR}"
++        )
++        message(STATUS "Successfully configured Lanelet2_${comp}")
++    else()
++        message(FATAL_ERROR "Could not find Lanelet2 component: ${comp}\n"
++                          "Library path: ${Lanelet2_${COMP_UPPER}_LIBRARY}\n"
++                          "Include path: ${Lanelet2_${COMP_UPPER}_INCLUDE_DIR}")
++    endif()
++
++    unset(Lanelet2_${COMP_UPPER}_LIBRARY CACHE)
++endforeach()
++
++set(Lanelet2_PYTHON_INCLUDE_DIR "${LANELET2_ROOT}/lanelet2_python/include")
++
++## add path to lanelet2_extension
++set(LANELET2_EXTENSION_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../autoware_lanelet2_extension")
++find_library(Lanelet2_Extension_LIBRARY
++    NAMES lanelet2_extension_lib
++    PATHS
++        "${CMAKE_INSTALL_PREFIX}/lib"
++        "${LANELET2_EXTENSION_ROOT}/build/"
++        "${LANELET2_ROOT}/install/lib"
++    NO_DEFAULT_PATH
+ )
+-ament_python_install_package(${PROJECT_NAME})
++set(Lanelet2_Extension_INCLUDE_DIR "${LANELET2_EXTENSION_ROOT}/include")
++message(STATUS "  Library: ${Lanelet2_Extension_LIBRARY}")
++message(STATUS "  Include: ${Lanelet2_Extension_INCLUDE_DIR}")
++if(Lanelet2_Extension_LIBRARY AND EXISTS ${Lanelet2_Extension_INCLUDE_DIR})
++        add_library(Lanelet2::Extension UNKNOWN IMPORTED)
++        set_target_properties(Lanelet2::Extension PROPERTIES
++            IMPORTED_LOCATION "${Lanelet2_Extension_LIBRARY}"
++            INTERFACE_INCLUDE_DIRECTORIES "${Lanelet2_Extension_INCLUDE_DIR}"
++        )
++        message(STATUS "Successfully configured Lanelet2_${comp}")
++    else()
++        message(FATAL_ERROR "Could not find Lanelet2 component: ${comp}\n"
++                          "Library path: ${Lanelet2_Extension_LIBRARY}\n"
++                          "Include path: ${Lanelet2_Extension_INCLUDE_DIR}")
++endif()
++
++
+ 
+ set(CMAKE_SHARED_LIBRARY_PREFIX "")
+-ament_auto_add_library(_${PROJECT_NAME}_boost_python_utility SHARED
++add_library(_${PROJECT_NAME}_boost_python_utility SHARED
+   src/utility.cpp
+ )
+-ament_auto_add_library(_${PROJECT_NAME}_boost_python_projection SHARED
++target_link_libraries(_${PROJECT_NAME}_boost_python_utility
++  ${Boost_LIBRARIES}
++  Eigen3::Eigen
++  Lanelet2::core
++  Lanelet2::io
++  Lanelet2::projection
++  Lanelet2::routing
++  Lanelet2::traffic_rules
++  Lanelet2::validation
++  Lanelet2::Extension
++)
++target_include_directories(_${PROJECT_NAME}_boost_python_utility
++  PUBLIC
++    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
++    $<INSTALL_INTERFACE:include>
++    ${Lanelet2_PYTHON_INCLUDE_DIR}
++  PRIVATE
++    ${CMAKE_CURRENT_SOURCE_DIR}/lib
++)
++
++add_library(_${PROJECT_NAME}_boost_python_projection SHARED
+   src/projection.cpp
+ )
+-ament_auto_add_library(_${PROJECT_NAME}_boost_python_regulatory_elements SHARED
++target_link_libraries(_${PROJECT_NAME}_boost_python_projection
++  ${Boost_LIBRARIES}
++  Eigen3::Eigen
++  Lanelet2::core
++  Lanelet2::io
++  Lanelet2::projection
++  Lanelet2::Extension
++)
++target_include_directories(_${PROJECT_NAME}_boost_python_projection
++  PUBLIC
++    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
++    $<INSTALL_INTERFACE:include>
++    ${Lanelet2_PYTHON_INCLUDE_DIR}
++  PRIVATE
++    ${CMAKE_CURRENT_SOURCE_DIR}/lib
++)
++
++add_library(_${PROJECT_NAME}_boost_python_regulatory_elements SHARED
+   src/regulatory_elements.cpp
+ )
+-install(TARGETS _${PROJECT_NAME}_boost_python_utility _${PROJECT_NAME}_boost_python_projection _${PROJECT_NAME}_boost_python_regulatory_elements
+-  DESTINATION "${PYTHON_INSTALL_DIR}/${PROJECT_NAME}"
++target_link_libraries(_${PROJECT_NAME}_boost_python_regulatory_elements
++  ${Boost_LIBRARIES}
++  Eigen3::Eigen
++  Lanelet2::core
++  Lanelet2::io
++  Lanelet2::Extension
+ )
+ 
+-if(BUILD_TESTING)
+-  find_package(ament_lint_auto REQUIRED)
+-  ament_lint_auto_find_test_dependencies()
+-  find_package(ament_cmake_pytest REQUIRED)
+-
+-  set(test_files
+-    test/test_import_projection.py
+-    test/test_import_utility.py
+-    test/test_import_regulatory_elements.py
+-    test/test_projection.py
+-  )
+-  foreach(test_file ${test_files})
+-    get_filename_component(test_name ${test_file} NAME_WE)
+-    ament_add_pytest_test(${test_name} ${test_file}
+-      APPEND_ENV AMENT_PREFIX_PATH=${ament_index_build_path}
+-      PYTHONPATH=${CMAKE_CURRENT_BINARY_DIR}
+-      TIMEOUT 120
+-      WERROR ON
+-    )
+-  endforeach()
+-endif()
++install(TARGETS
++  _${PROJECT_NAME}_boost_python_utility
++  _${PROJECT_NAME}_boost_python_projection
++  _${PROJECT_NAME}_boost_python_regulatory_elements
++  DESTINATION "${PYTHON_INSTALL_DIR}/${PROJECT_NAME}"
++)
+ 
+-ament_auto_package(INSTALL_TO_SHARE
+-  test_map
++install(DIRECTORY
++  ${CMAKE_CURRENT_SOURCE_DIR}/autoware_lanelet2_extension_python
++  DESTINATION "${PYTHON_INSTALL_DIR}"
++  FILES_MATCHING
++  PATTERN "*.py"
++  PATTERN "__pycache__" EXCLUDE
+ )
+diff --git a/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python/utility/__init__.py b/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python/utility/__init__.py
+index e69de29..cf317e4 100644
+--- a/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python/utility/__init__.py
++++ b/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python/utility/__init__.py
+@@ -0,0 +1,2 @@
++import autoware_lanelet2_extension_python.regulatory_elements  # noqa
++from .map_projector_info import MapProjectorInfo, load_info_from_yaml
+diff --git a/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python/utility/map_projector_info.py b/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python/utility/map_projector_info.py
+new file mode 100644
+index 0000000..631da9e
+--- /dev/null
++++ b/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python/utility/map_projector_info.py
+@@ -0,0 +1,101 @@
++"""
++From tier4_autoware_msgs: https://github.com/tier4/tier4_autoware_msgs/blob/tier4/universe/tier4_map_msgs/msg/MapProjectorInfo.msg
++
++# Projector type
++# Also refer to https://github.com/autowarefoundation/autoware.universe/tree/main/map/autoware_map_projection_loader/README.md
++string LOCAL = "local"
++string LOCAL_CARTESIAN_UTM = "LocalCartesianUTM"
++string MGRS = "MGRS"
++string TRANSVERSE_MERCATOR = "TransverseMercator"
++string projector_type
++
++# Vertical datum
++# Also refer to https://github.com/autowarefoundation/autoware.universe/tree/main/map/autoware_map_projection_loader/README.md
++string WGS84 = "WGS84"
++string EGM2008 = "EGM2008"
++string vertical_datum
++
++# Used for MGRS map
++string mgrs_grid
++
++# Used for some map projection types
++# altitude may not be in ellipsoid height
++geographic_msgs/GeoPoint map_origin
++
++-----
++https://docs.ros.org/en/melodic/api/geographic_msgs/html/msg/GeoPoint.html
++# Geographic point, using the WGS 84 reference ellipsoid.
++
++# Latitude [degrees]. Positive is north of equator; negative is south
++# (-90 <= latitude <= +90).
++float64 latitude
++
++# Longitude [degrees]. Positive is east of prime meridian; negative is
++# west (-180 <= longitude <= +180). At the poles, latitude is -90 or
++# +90, and longitude is irrelevant, but must be in range.
++float64 longitude
++
++# Altitude [m]. Positive is above the WGS 84 ellipsoid (NaN if unspecified).
++float64 altitude
++"""
++import yaml
++
++class GeoPoint:
++    """
++    # Geographic point, using the WGS 84 reference ellipsoid.
++    # Latitude [degrees]. Positive is north of equator; negative is south
++    # (-90 <= latitude <= +90).
++    float64 latitude
++    # Longitude [degrees]. Positive is east of prime meridian; negative is
++    # west (-180 <= longitude <= +180). At the poles, latitude is -90 or
++    # +90, and longitude is irrelevant, but must be in range.
++    float64 longitude
++    # Altitude [m]. Positive is above the WGS 84 ellipsoid (NaN if unspecified).
++    float64 altitude
++    """
++    def __init__(self, latitude:float, longitude:float, altitude:float):
++        self.latitude = latitude
++        self.longitude = longitude
++        self.altitude = altitude
++
++
++class MapProjectorInfo:
++    """
++    # Projector type
++    # Also refer to https://github.com/autowarefoundation/autoware.universe/tree/main/map/autoware_map_projection_loader/README.md
++    string LOCAL = "local"
++    string LOCAL_CARTESIAN_UTM = "LocalCartesianUTM"
++    string MGRS = "MGRS"
++    string TRANSVERSE_MERCATOR = "TransverseMercator"
++    string projector_type
++    # Vertical datum
++    # Also refer to https://github.com/autowarefoundation/autoware.universe/tree/main/map/autoware_map_projection_loader/README.md
++    string WGS84 = "WGS84"
++    string EGM2008 = "EGM2008"
++    string vertical_datum
++    # Used for MGRS map
++    string mgrs_grid
++    # Used for some map projection types
++    # altitude may not be in ellipsoid height
++    geographic_msgs/GeoPoint map_origin
++    """
++    def __init__(self, projector_type:str, vertical_datum:str, mgrs_grid:str, map_origin:GeoPoint=GeoPoint(0, 0, 0)):
++        assert projector_type in ["LOCAL", "LOCAL_CARTESIAN_UTM", "MGRS", "TransverseMercator"]
++        self.projector_type = projector_type
++        self.vertical_datum = vertical_datum
++        self.mgrs_grid = mgrs_grid
++        self.map_origin = map_origin
++
++def load_info_from_yaml(yaml_path:str):
++    with open(yaml_path, "r") as f:
++        yaml_dict = yaml.safe_load(f)
++    
++    assert "projector_type" in yaml_dict
++    vertical_datum = yaml_dict.get("vertical_datum", "WGS84")
++    mgrs_grid = yaml_dict.get("mgrs_grid", "")
++    map_origin = yaml_dict.get("map_origin", None)
++    if map_origin is not None:
++        map_origin = GeoPoint(map_origin["latitude"], map_origin["longitude"], map_origin["altitude"])
++    else:
++        map_origin = GeoPoint(0, 0, 0)
++    return MapProjectorInfo(yaml_dict["projector_type"], vertical_datum, mgrs_grid, map_origin)
+\ No newline at end of file
+diff --git a/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python/utility/query.py b/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python/utility/query.py
+index a9183a3..0f74857 100644
+--- a/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python/utility/query.py
++++ b/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python/utility/query.py
+@@ -1,10 +1,6 @@
+ import lanelet2  # noqa: F401 # isort: skip
+ import autoware_lanelet2_extension_python._autoware_lanelet2_extension_python_boost_python_utility as _utility_cpp
+-from geometry_msgs.msg import Point
+-from geometry_msgs.msg import Pose
+-
+-# from rclpy.serialization import deserialize_message
+-from rclpy.serialization import serialize_message
++import numpy as np
+ 
+ laneletLayer = _utility_cpp.laneletLayer
+ subtypeLanelets = _utility_cpp.subtypeLanelets
+@@ -38,57 +34,92 @@ stopSignStopLines = _utility_cpp.stopSignStopLines
+ 
+ 
+ def getLaneletsWithinRange(lanelets, point, rng):
+-    if isinstance(point, Point):
+-        point_byte = serialize_message(point)
+-        return _utility_cpp.getLaneletsWithinRange_point(lanelets, point_byte, rng)
++    """Get lanelets within range of a point.
++
++    Args:
++        lanelets: List of lanelets to search
++        point: Either lanelet2.core.BasicPoint2d or numpy array [x,y,z]
++        rng: Search radius
++    """
++    rng = float(rng)
++    if isinstance(point, np.ndarray):
++        return _utility_cpp.getLaneletsWithinRange_point(lanelets, np.array(point, dtype=np.double).tobytes(), rng)
+     if isinstance(point, lanelet2.core.BasicPoint2d):
+         return _utility_cpp.getLaneletsWithinRange(lanelets, point, rng)
+-    raise TypeError("argument point is neither BasicPoint2d nor Point")
++    raise TypeError("argument point must be numpy array or BasicPoint2d")
+ 
+ 
+ def getLaneChangeableNeighbors(*args):
++    """Get lane-changeable neighbor lanelets.
++
++    Args:
++        graph: Routing graph
++        lanelet: Target lanelet
++        point: (Optional) numpy array [x,y,z] to search from
++    """
+     if len(args) == 2 and isinstance(args[1], lanelet2.core.Lanelet):
+         return _utility_cpp.getLaneChangeableNeighbors(args[0], args[1])
+-    if len(args) == 3 and isinstance(args[2], Point):
+-        point_byte = serialize_message(args[2])
+-        return _utility_cpp.getLaneChangeableNeighbors_point(args[0], args[1], point_byte)
+-    raise TypeError("argument number does not match or 3rd argument is not Point type")
++    if len(args) == 3 and isinstance(args[2], np.ndarray):
++        return _utility_cpp.getLaneChangeableNeighbors_point(args[0], args[1], np.array(args[2], dtype=np.double).tobytes())
++    raise TypeError("Invalid arguments")
+ 
+ 
+ def getAllNeighbors(*args):
++    """Get all neighbor lanelets.
++
++    Args:
++        graph: Routing graph
++        lanelet: Target lanelet
++        point: (Optional) numpy array [x,y,z] to search from
++    """
+     if len(args) == 2 and isinstance(args[1], lanelet2.core.Lanelet):
+         return _utility_cpp.getAllNeighbors(args[0], args[1])
+-    if len(args) == 3 and isinstance(args[2], Point):
+-        point_byte = serialize_message(args[2])
+-        return _utility_cpp.getAllNeighbors_point(args[0], args[1], point_byte)
++    if len(args) == 3 and isinstance(args[2], np.ndarray):
++        return _utility_cpp.getAllNeighbors_point(args[0], args[1], np.array(args[2], dtype=np.double).tobytes())
++    raise TypeError("Invalid arguments")
+ 
+ 
+ getAllNeighborsLeft = _utility_cpp.getAllNeighborsLeft
+ getAllNeighborsRight = _utility_cpp.getAllNeighborsRight
+ 
+ 
+-def getClosestLanelet(lanelets, pose: Pose):
+-    pose_byte = serialize_message(pose)
+-    return _utility_cpp.getClosestLanelet(lanelets, pose_byte)
++def getClosestLanelet(lanelets, pose):
++    """Get closest lanelet to pose.
+ 
++    Args:
++        lanelets: List of lanelets to search
++        pose: numpy array [x,y,z,yaw]
++    """
++    return _utility_cpp.getClosestLanelet(lanelets, np.array(pose, dtype=np.double).tobytes())
+ 
+-def getClosestLaneletWithConstrains(
+-    lanelets, pose: Pose, closest_lanelet, dist_threshold, yaw_threshold
+-):
+-    pose_byte = serialize_message(pose)
+-    return _utility_cpp.getClosestLaneletWithConstrains(
+-        lanelets, pose_byte, closest_lanelet, dist_threshold, yaw_threshold
++
++def getClosestLaneletWithConstrains(lanelets, pose, closest_lanelet, dist_threshold, yaw_threshold):
++    """Get closest lanelet with distance and yaw constraints.
++
++    Args:
++        lanelets: List of lanelets to search
++        pose: numpy array [x,y,z,yaw]
++        closest_lanelet: Reference lanelet
++        dist_threshold: Maximum allowed distance
++        yaw_threshold: Maximum allowed yaw difference
++    """
++    return _utility_cpp.getClosestLaneletWithConstrains_point(
++        lanelets, np.array(pose, dtype=np.double).tobytes(), closest_lanelet, dist_threshold, yaw_threshold
+     )
+ 
+ 
+-def getCurrentLanelets(lanelets, point: Point):
+-    if isinstance(point, Point):
+-        point_byte = serialize_message(point)
+-        return _utility_cpp.getCurrentLanelets_point(lanelets, point_byte)
+-    if isinstance(point, Pose):
+-        pose_byte = serialize_message(point)
+-        return _utility_cpp.getCurrentLanelets_pose(lanelets, pose_byte)
+-    raise TypeError("argument number does not match or 2nd argument is not Point/Pose type")
++def getCurrentLanelets(lanelets, point_or_pose):
++    """Get current lanelets containing point/pose.
++
++    Args:
++        lanelets: List of lanelets to search
++        point_or_pose: numpy array [x,y,z] or [x,y,z,yaw]
++    """
++    if len(point_or_pose) == 3:
++        return _utility_cpp.getCurrentLanelets_point(lanelets, np.array(point_or_pose, dtype=np.double).tobytes())
++    if len(point_or_pose) == 4:
++        return _utility_cpp.getCurrentLanelets_pose(lanelets, np.array(point_or_pose, dtype=np.double).tobytes())
++    raise TypeError("point_or_pose must be [x,y] or [x,y,z,yaw] numpy array")
+ 
+ 
+ getSucceedingLaneletSequences = _utility_cpp.getSucceedingLaneletSequences
+diff --git a/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python/utility/utilities.py b/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python/utility/utilities.py
+index 6ce8045..6e31a98 100644
+--- a/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python/utility/utilities.py
++++ b/autoware_lanelet2_extension_python/autoware_lanelet2_extension_python/utility/utilities.py
+@@ -1,24 +1,151 @@
++"""Utility functions for lanelet2 operations.
++
++This module provides various utility functions for working with lanelets,
++including operations for centerline generation, lanelet expansion, and
++geometric calculations.
++"""
+ import autoware_lanelet2_extension_python._autoware_lanelet2_extension_python_boost_python_utility as _utility_cpp
+-from geometry_msgs.msg import Point
+-from geometry_msgs.msg import Pose
+-from geometry_msgs.msg import Quaternion
+ import lanelet2
+-from rclpy.serialization import serialize_message
++import numpy as np
+ 
++# Direct imports from C++ module
+ combineLaneletsShape = _utility_cpp.combineLaneletsShape
++"""Combines multiple lanelets into a single shape.
++
++Args:
++    lanelets (list): List of lanelets to combine.
++
++Returns:
++    lanelet2.core.CompoundPolygon3d: Combined shape of the lanelets.
++"""
++
+ generateFineCenterline = _utility_cpp.generateFineCenterline
++"""Generates a fine centerline for a lanelet.
++
++Args:
++    lanelet (lanelet2.core.Lanelet): The lanelet to generate centerline for.
++    resolution (float, optional): Resolution of the centerline. Default is determined by implementation.
++
++Returns:
++    lanelet2.core.LineString3d: Generated centerline.
++"""
++
+ getCenterlineWithOffset = _utility_cpp.getCenterlineWithOffset
++"""Gets the centerline of a lanelet with a lateral offset.
++
++Args:
++    lanelet (lanelet2.core.Lanelet): The lanelet.
++    offset (float): Lateral offset from the centerline.
++    resolution (float, optional): Resolution of the centerline. Default is determined by implementation.
++
++Returns:
++    lanelet2.core.LineString3d: Centerline with offset.
++"""
++
+ getRightBoundWithOffset = _utility_cpp.getRightBoundWithOffset
++"""Gets the right boundary of a lanelet with a lateral offset.
++
++Args:
++    lanelet (lanelet2.core.Lanelet): The lanelet.
++    offset (float): Lateral offset from the right boundary.
++    resolution (float, optional): Resolution of the boundary. Default is determined by implementation.
++
++Returns:
++    lanelet2.core.LineString3d: Right boundary with offset.
++"""
++
+ getLeftBoundWithOffset = _utility_cpp.getLeftBoundWithOffset
++"""Gets the left boundary of a lanelet with a lateral offset.
++
++Args:
++    lanelet (lanelet2.core.Lanelet): The lanelet.
++    offset (float): Lateral offset from the left boundary.
++    resolution (float, optional): Resolution of the boundary. Default is determined by implementation.
++
++Returns:
++    lanelet2.core.LineString3d: Left boundary with offset.
++"""
++
+ getExpandedLanelet = _utility_cpp.getExpandedLanelet
++"""Expands a lanelet by a specified width.
++
++Args:
++    lanelet (lanelet2.core.Lanelet): The lanelet to expand.
++    left_offset (float): Offset to expand the left boundary.
++    right_offset (float): Offset to expand the right boundary.
++
++Returns:
++    lanelet2.core.Lanelet: Expanded lanelet.
++"""
++
+ getExpandedLanelets = _utility_cpp.getExpandedLanelets
++"""Expands multiple lanelets by a specified width.
++
++Args:
++    lanelets (list): List of lanelets to expand.
++    left_offset (float): Offset to expand the left boundary.
++    right_offset (float): Offset to expand the right boundary.
++
++Returns:
++    list: List of expanded lanelets.
++"""
++
+ overwriteLaneletsCenterline = _utility_cpp.overwriteLaneletsCenterline
++"""Overwrites the centerline of lanelets.
++
++Args:
++    lanelets (list): List of lanelets to overwrite centerlines.
++    resolution (float, optional): Resolution of the centerline. Default is determined by implementation.
++    force_overwrite (bool, optional): Whether to force overwrite existing centerlines. Default is false.
++
++Returns:
++    None
++"""
++
+ getConflictingLanelets = _utility_cpp.getConflictingLanelets
++"""Gets conflicting lanelets for a lanelet.
++
++Args:
++    lanelet (lanelet2.core.Lanelet): The lanelet to check conflicts for.
++    lanelets (list): List of lanelets to check against.
++
++Returns:
++    list: List of conflicting lanelets.
++"""
++
+ lineStringWithWidthToPolygon = _utility_cpp.lineStringWithWidthToPolygon
++"""Converts a linestring with width attribute to a polygon.
++
++Args:
++    linestring (lanelet2.core.LineString3d): The linestring to convert.
++
++Returns:
++    Optional[lanelet2.core.Polygon3d]: Resulting polygon, or None if conversion failed.
++"""
++
+ lineStringToPolygon = _utility_cpp.lineStringToPolygon
++"""Converts a linestring to a polygon.
++
++Args:
++    linestring (lanelet2.core.LineString3d): The linestring to convert.
++
++Returns:
++    Optional[lanelet2.core.Polygon3d]: Resulting polygon, or None if conversion failed.
++"""
+ 
+ 
+ def getLaneletLength2d(*args):
++    """Gets the 2D length of a lanelet or sequence of lanelets.
++
++    Args:
++        args: Either a single lanelet or a list of lanelets.
++
++    Returns:
++        float: 2D length of the lanelet(s).
++
++    Raises:
++        TypeError: If arguments don't match expected types.
++    """
+     if len(args) == 1 and isinstance(args[0], lanelet2.core.Lanelet):
+         return _utility_cpp.getLaneletLength2d(args[0])
+     if len(args) == 1 and isinstance(args[0], list):
+@@ -29,6 +156,17 @@ def getLaneletLength2d(*args):
+ 
+ 
+ def getLaneletLength3d(*args):
++    """Gets the 3D length of a lanelet or sequence of lanelets.
++
++    Args:
++        args: Either a single lanelet or a list of lanelets.
++
++    Returns:
++        float: 3D length of the lanelet(s).
++
++    Raises:
++        TypeError: If arguments don't match expected types.
++    """
+     if len(args) == 1 and isinstance(args[0], lanelet2.core.Lanelet):
+         return _utility_cpp.getLaneletLength3d(args[0])
+     if len(args) == 1 and isinstance(args[0], list):
+@@ -38,38 +176,105 @@ def getLaneletLength3d(*args):
+     )
+ 
+ 
+-def getArcCoordinates(lanelet_sequence, pose: Pose):
+-    pose_byte = serialize_message(pose)
+-    return _utility_cpp.getArcCoordinates(lanelet_sequence, pose_byte)
++def getArcCoordinates(lanelet_sequence, pose: np.ndarray):
++    """Gets arc coordinates for a pose within a lanelet sequence.
++
++    Args:
++        lanelet_sequence: Sequence of lanelets
++        pose: numpy array [x, y, z, yaw] representing position and orientation
++
++    Returns:
++        lanelet2.core.ArcCoordinates: Arc coordinates of the pose.
++    """
++    return _utility_cpp.getArcCoordinates(lanelet_sequence, np.array(pose, dtype=np.double).tobytes())
+ 
+ 
+ getClosestSegment = _utility_cpp.getClosestSegment
++"""Gets the closest segment in a linestring to a point.
++
++Args:
++    linestring (lanelet2.core.LineString3d): The linestring to search in.
++    point (lanelet2.core.BasicPoint2d): The point to find closest segment to.
++
++Returns:
++    tuple: Tuple containing (segment_idx, segment_ratio).
++"""
++
+ getPolygonFromArcLength = _utility_cpp.getPolygonFromArcLength
++"""Gets a polygon from a lanelet at a specific arc length.
++
++Args:
++    lanelet (lanelet2.core.Lanelet): The lanelet.
++    s_start (float): Start arc length.
++    s_end (float): End arc length.
++
++Returns:
++    lanelet2.core.CompoundPolygon3d: Polygon representing the lanelet section.
++"""
++
++
++def getLaneletAngle(lanelet, point: np.ndarray):
++    """Gets the angle of a lanelet at a specific point.
++
++    Args:
++        lanelet: Lanelet object
++        point: numpy array [x, y, z] representing 3D point
++
++    Returns:
++        float: Angle of the lanelet at the point (radians).
++    """
++    return _utility_cpp.getLaneletAngle(lanelet, np.array(point, dtype=np.double).tobytes())
++
++
++def isInLanelet(pose, lanelet, radius=0.0):
++    """Checks if a pose is within a lanelet.
++
++    Args:
++        pose: numpy array [x, y, z, yaw] representing position and orientation
++        lanelet: Lanelet object
++        radius: float, optional radius to expand the lanelet check
++
++    Returns:
++        bool: True if the pose is in the lanelet, False otherwise.
++    """
++    return _utility_cpp.isInLanelet(np.array(pose, dtype=np.double).tobytes(), lanelet, radius)
++
++
++def getClosestCenterPose(lanelet, point: np.ndarray):
++    """Gets the closest pose on the centerline of a lanelet to a point.
+ 
++    Args:
++        lanelet: Lanelet object
++        point: numpy array [x, y, z] representing 3D point
+ 
+-def getLaneletAngle(lanelet, point: Point):
+-    point_byte = serialize_message(point)
+-    return _utility_cpp.getLaneletAngle(lanelet, point_byte)
++    Returns:
++        numpy array [x, y, z, yaw] representing position and orientation
++    """
++    pose_array = _utility_cpp.getClosestCenterPose(lanelet, np.array(point, dtype=np.double).tobytes())
++    return np.array(pose_array)  # Returns [x, y, z, yaw]
+ 
+ 
+-def isInLanelet(pose: Pose, lanelet, radius=0.0):
+-    pose_byte = serialize_message(pose)
+-    return _utility_cpp.isInLanelet(pose_byte, lanelet, radius)
++def getLateralDistanceToCenterline(lanelet, pose):
++    """Gets the lateral distance from a pose to the centerline of a lanelet.
+ 
++    Args:
++        lanelet: Lanelet object
++        pose: numpy array [x, y, z, yaw] representing position and orientation
+ 
+-def getClosestCenterPose(lanelet, point: Point):
+-    point_byte = serialize_message(point)
+-    pose_array = _utility_cpp.getClosestCenterPose(lanelet, point_byte)
+-    pos = Point(x=pose_array[0], y=pose_array[1], z=pose_array[2])
+-    quat = Quaternion(x=pose_array[3], y=pose_array[4], z=pose_array[5], w=pose_array[6])
+-    return Pose(position=pos, orientation=quat)
++    Returns:
++        float: Lateral distance to the centerline.
++    """
++    return _utility_cpp.getLateralDistanceToCenterline(lanelet, np.array(pose, dtype=np.double).tobytes())
+ 
+ 
+-def getLateralDistanceToCenterline(lanelet, pose: Pose):
+-    pose_byte = serialize_message(pose)
+-    return _utility_cpp.getLateralDistanceToCenterline(lanelet, pose_byte)
++def getLateralDistanceToClosestLanelet(lanelet_sequence, pose):
++    """Gets the lateral distance from a pose to the closest lanelet in a sequence.
+ 
++    Args:
++        lanelet_sequence: Sequence of lanelets
++        pose: numpy array [x, y, z, yaw] representing position and orientation
+ 
+-def getLateralDistanceToClosestLanelet(lanelet_sequence, pose: Pose):
+-    pose_byte = serialize_message(pose)
+-    return _utility_cpp.getLateralDistanceToClosestLanelet(lanelet_sequence, pose_byte)
++    Returns:
++        float: Lateral distance to the closest lanelet.
++    """
++    return _utility_cpp.getLateralDistanceToClosestLanelet(lanelet_sequence, np.array(pose, dtype=np.double).tobytes())
+diff --git a/autoware_lanelet2_extension_python/package.xml b/autoware_lanelet2_extension_python/package.xml
+index ce40749..3650336 100644
+--- a/autoware_lanelet2_extension_python/package.xml
++++ b/autoware_lanelet2_extension_python/package.xml
+@@ -1,22 +1,17 @@
+ <?xml version="1.0"?>
+ <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+ <package format="3">
+-  <name>autoware_lanelet2_extension_python</name>
+-  <version>1.1.0</version>
++  <name>lanelet2_extension_python</name>
++  <version>0.6.2</version>
+   <description>The autoware_lanelet2_extension_python package contains Python bindings for lanelet2_extension package</description>
+   <maintainer email="mamoru.sobue@tier4.jp">Mamoru Sobue</maintainer>
+   <maintainer email="yutaka.kondo@tier4.jp">Yutaka Kondo</maintainer>
+-  <maintainer email="kotaro.uetake@tier4.jp">Kotaro Uetake</maintainer>
+-  <maintainer email="junya.sasaki@tier4.jp">Junya Sasaki</maintainer>
+   <license>Apache License 2.0</license>
+ 
+-  <buildtool_depend>ament_cmake_auto</buildtool_depend>
+-  <buildtool_depend>autoware_cmake</buildtool_depend>
+   <buildtool_depend>python_cmake_module</buildtool_depend>
+ 
+-  <depend>autoware_lanelet2_extension</depend>
+-  <depend>geometry_msgs</depend>
+   <depend>lanelet2_core</depend>
++  <depend>lanelet2_extension</depend>
+   <depend>lanelet2_io</depend>
+   <depend>lanelet2_projection</depend>
+   <depend>lanelet2_python</depend>
+@@ -24,12 +19,4 @@
+   <depend>lanelet2_traffic_rules</depend>
+   <depend>lanelet2_validation</depend>
+   <depend>libboost-python-dev</depend>
+-  <depend>rclcpp</depend>
+-
+-  <test_depend>ament_cmake_ros</test_depend>
+-  <test_depend>python3-pytest</test_depend>
+-
+-  <export>
+-    <build_type>ament_cmake</build_type>
+-  </export>
+ </package>
+diff --git a/autoware_lanelet2_extension_python/src/utility.cpp b/autoware_lanelet2_extension_python/src/utility.cpp
+index 13544c9..db838eb 100644
+--- a/autoware_lanelet2_extension_python/src/utility.cpp
++++ b/autoware_lanelet2_extension_python/src/utility.cpp
+@@ -16,11 +16,9 @@
+ 
+ // NOLINTBEGIN(readability-identifier-naming)
+ 
+-#include <autoware_lanelet2_extension/utility/message_conversion.hpp>
++#include <Eigen/Dense>
+ #include <autoware_lanelet2_extension/utility/query.hpp>
+ #include <autoware_lanelet2_extension/utility/utilities.hpp>
+-#include <rclcpp/rclcpp.hpp>
+-#include <rclcpp/serialization.hpp>
+ 
+ #include <boost/python.hpp>
+ #include <boost/python/suite/indexing/vector_indexing_suite.hpp>
+@@ -30,13 +28,6 @@
+ #include <lanelet2_core/primitives/Lanelet.h>
+ #include <lanelet2_python/internal/converter.h>
+ 
+-#ifdef ROS_DISTRO_GALACTIC
+-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+-#else
+-#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+-#endif
+-#include <tf2/utils.hpp>
+-
+ #include <algorithm>
+ #include <iostream>
+ #include <limits>
+@@ -168,18 +159,6 @@ void copyZ(const T1 & from, T2 & to)
+   }
+ }
+ 
+-void toLaneletPoint(const geometry_msgs::msg::Point & src, lanelet::ConstPoint3d * dst)
+-{
+-  *dst = lanelet::Point3d(lanelet::InvalId, src.x, src.y, src.z);
+-}
+-
+-lanelet::ConstPoint3d toLaneletPoint(const geometry_msgs::msg::Point & src)
+-{
+-  lanelet::ConstPoint3d dst;
+-  toLaneletPoint(src, &dst);
+-  return dst;
+-}
+-
+ lanelet::LineString3d getLineStringFromArcLength(
+   const lanelet::ConstLineString3d & linestring, const double s1, const double s2)
+ {
+@@ -256,7 +235,7 @@ inline double normalize_radian(const double rad)
+ 
+ // forward declaration
+ bool getClosestLanelet(
+-  const lanelet::ConstLanelets & lanelets, const geometry_msgs::msg::Pose & search_pose,
++  const lanelet::ConstLanelets & lanelets, const Eigen::Vector4d & search_pose,
+   lanelet::ConstLanelet * closest_lanelet_ptr);
+ 
+ /**
+@@ -293,54 +272,41 @@ lanelet::ConstLineString3d getClosestSegment(
+   return closest_segment;
+ }
+ 
+-double getLaneletAngle(
+-  const lanelet::ConstLanelet & lanelet, const geometry_msgs::msg::Point & search_point)
++// Helper functions to convert byte arrays to Eigen vectors
++Eigen::Vector3d bytesToVector3d(const std::string & bytes)
+ {
+-  lanelet::BasicPoint2d llt_search_point(search_point.x, search_point.y);
+-  lanelet::ConstLineString3d segment = getClosestSegment(llt_search_point, lanelet.centerline());
+-  return std::atan2(
+-    segment.back().y() - segment.front().y(), segment.back().x() - segment.front().x());
++  if (bytes.size() != sizeof(double) * 3) {
++    throw std::runtime_error("Invalid byte array size for Vector3d");
++  }
++  const double * data = reinterpret_cast<const double *>(bytes.data());
++  return Eigen::Vector3d(data[0], data[1], data[2]);
+ }
+ 
+-geometry_msgs::msg::Pose getClosestCenterPose(
+-  const lanelet::ConstLanelet & lanelet, const geometry_msgs::msg::Point & search_point)
++Eigen::Vector4d bytesToVector4d(const std::string & bytes)
+ {
+-  lanelet::BasicPoint2d llt_search_point(search_point.x, search_point.y);
+-
+-  if (lanelet.centerline().size() == 1) {
+-    geometry_msgs::msg::Pose closest_pose;
+-    closest_pose.position.x = lanelet.centerline().front().x();
+-    closest_pose.position.y = lanelet.centerline().front().y();
+-    closest_pose.position.z = search_point.z;
+-    closest_pose.orientation.x = 0.0;
+-    closest_pose.orientation.y = 0.0;
+-    closest_pose.orientation.z = 0.0;
+-    closest_pose.orientation.w = 1.0;
+-    return closest_pose;
+-  }
+-
+-  lanelet::ConstLineString3d segment = getClosestSegment(llt_search_point, lanelet.centerline());
+-  if (segment.empty()) {
+-    return geometry_msgs::msg::Pose{};
++  if (bytes.size() != sizeof(double) * 4) {
++    throw std::runtime_error("Invalid byte array size for Vector4d");
+   }
++  const double * data = reinterpret_cast<const double *>(bytes.data());
++  return Eigen::Vector4d(data[0], data[1], data[2], data[3]);
++}
+ 
+-  const Eigen::Vector2d direction(
+-    (segment.back().basicPoint2d() - segment.front().basicPoint2d()).normalized());
+-  const Eigen::Vector2d xf(segment.front().basicPoint2d());
+-  const Eigen::Vector2d x(search_point.x, search_point.y);
+-  const Eigen::Vector2d p = xf + (x - xf).dot(direction) * direction;
+-
+-  geometry_msgs::msg::Pose closest_pose;
+-  closest_pose.position.x = p.x();
+-  closest_pose.position.y = p.y();
+-  closest_pose.position.z = search_point.z;
+-
+-  const double lane_yaw = getLaneletAngle(lanelet, search_point);
+-  tf2::Quaternion q;
+-  q.setRPY(0, 0, lane_yaw);
+-  closest_pose.orientation = tf2::toMsg(q);
++double getLaneletAngle(const lanelet::ConstLanelet & lanelet, const std::string & point_byte)
++{
++  const Eigen::Vector3d point = bytesToVector3d(point_byte);
++  Eigen::Vector4d extented_point;
++  extented_point.x() = point.x();
++  extented_point.y() = point.y();
++  extented_point.z() = point.z();
++  return lanelet::utils::getLaneletAngle(lanelet, extented_point);
++}
+ 
+-  return closest_pose;
++std::vector<double> getClosestCenterPose(
++  const lanelet::ConstLanelet & lanelet, const std::string & search_point_byte)
++{
++  const Eigen::Vector3d search_point = bytesToVector3d(search_point_byte);
++  const Eigen::Vector4d pose = lanelet::utils::getClosestCenterPose(lanelet, search_point);
++  return std::vector<double>{pose[0], pose[1], pose[2], pose[3]};
+ }
+ 
+ lanelet::ConstLanelets getConflictingLanelets(
+@@ -377,16 +343,16 @@ double getLaneletLength3d(const lanelet::ConstLanelets & lanelet_sequence)
+ }
+ 
+ bool isInLanelet(
+-  const geometry_msgs::msg::Pose & current_pose, const lanelet::ConstLanelet & lanelet,
++  const Eigen::Vector4d & current_pose, const lanelet::ConstLanelet & lanelet,
+   const double radius)
+ {
+   constexpr double eps = 1.0e-9;
+-  const lanelet::BasicPoint2d p(current_pose.position.x, current_pose.position.y);
++  const lanelet::BasicPoint2d p(current_pose.x(), current_pose.y());
+   return boost::geometry::distance(p, lanelet.polygon2d().basicPolygon()) < radius + eps;
+ }
+ 
+ lanelet::ArcCoordinates getArcCoordinates(
+-  const lanelet::ConstLanelets & lanelet_sequence, const geometry_msgs::msg::Pose & pose)
++  const lanelet::ConstLanelets & lanelet_sequence, const Eigen::Vector4d & pose)
+ {
+   lanelet::ConstLanelet closest_lanelet;
+   impl::getClosestLanelet(lanelet_sequence, pose, &closest_lanelet);
+@@ -396,9 +362,9 @@ lanelet::ArcCoordinates getArcCoordinates(
+   for (const auto & llt : lanelet_sequence) {
+     const auto & centerline_2d = lanelet::utils::to2D(llt.centerline());
+     if (llt == closest_lanelet) {
+-      const auto lanelet_point = detail::toLaneletPoint(pose.position);
++      const auto lanelet_point = lanelet::BasicPoint2d(pose.x(), pose.y());  // x,y
+       arc_coordinates = lanelet::geometry::toArcCoordinates(
+-        centerline_2d, lanelet::utils::to2D(lanelet_point).basicPoint());
++        centerline_2d, lanelet_point);
+       arc_coordinates.length += length;
+       break;
+     }
+@@ -408,19 +374,19 @@ lanelet::ArcCoordinates getArcCoordinates(
+ }
+ 
+ static double getLateralDistanceToCenterline(
+-  const lanelet::ConstLanelet & lanelet, const geometry_msgs::msg::Pose & pose)
++  const lanelet::ConstLanelet & lanelet, const Eigen::Vector4d & pose)
+ {
+   const auto & centerline_2d = lanelet::utils::to2D(lanelet.centerline());
+-  const auto lanelet_point = detail::toLaneletPoint(pose.position);
++  const auto lanelet_point = lanelet::BasicPoint2d(pose.x(), pose.y());  // x,y
+   return lanelet::geometry::signedDistance(
+-    centerline_2d, lanelet::utils::to2D(lanelet_point).basicPoint());
++    centerline_2d, lanelet_point);
+ }
+ 
+ double getLateralDistanceToClosestLanelet(
+-  const lanelet::ConstLanelets & lanelet_sequence, const geometry_msgs::msg::Pose & pose)
++  const lanelet::ConstLanelets & lanelet_sequence, const Eigen::Vector4d & pose)
+ {
+   lanelet::ConstLanelet closest_lanelet;
+-  impl::getClosestLanelet(lanelet_sequence, pose, &closest_lanelet);
++  getClosestLanelet(lanelet_sequence, pose, &closest_lanelet);
+   return getLateralDistanceToCenterline(closest_lanelet, pose);
+ }
+ 
+@@ -598,16 +564,10 @@ static lanelet::ConstLanelet getExpandedLanelet(
+   auto expanded_left_bound_2d = offsetNoThrow(orig_left_bound_2d, left_offset);
+   auto expanded_right_bound_2d = offsetNoThrow(orig_right_bound_2d, right_offset);
+ 
+-  rclcpp::Clock clock{RCL_ROS_TIME};
+-  try {
+-    checkForInversion(orig_left_bound_2d, expanded_left_bound_2d, left_offset);
+-    checkForInversion(orig_right_bound_2d, expanded_right_bound_2d, right_offset);
+-  } catch (const lanelet::GeometryError & e) {
+-    RCLCPP_ERROR_THROTTLE(
+-      rclcpp::get_logger("autoware_lanelet2_extension"), clock, 1000,
+-      "Fail to expand lanelet. output may be undesired. Lanelet points interval in map data could "
+-      "be too narrow.");
+-  }
++
++  checkForInversion(orig_left_bound_2d, expanded_left_bound_2d, left_offset);
++  checkForInversion(orig_right_bound_2d, expanded_right_bound_2d, right_offset);
++
+ 
+   // Note: modify front and back points so that the successive lanelets will not have any
+   // longitudinal space between them.
+@@ -705,7 +665,7 @@ lanelet::CompoundPolygon3d getPolygonFromArcLength(
+  */
+ 
+ bool getClosestLanelet(
+-  const lanelet::ConstLanelets & lanelets, const geometry_msgs::msg::Pose & search_pose,
++  const lanelet::ConstLanelets & lanelets, const Eigen::Vector4d & search_pose,
+   lanelet::ConstLanelet * closest_lanelet_ptr)
+ {
+   if (closest_lanelet_ptr == nullptr) {
+@@ -720,7 +680,7 @@ bool getClosestLanelet(
+ 
+   bool found = false;
+ 
+-  lanelet::BasicPoint2d search_point(search_pose.position.x, search_pose.position.y);
++  lanelet::BasicPoint2d search_point(search_pose.x(), search_pose.y());  // x,y
+ 
+   // find by distance
+   lanelet::ConstLanelets candidate_lanelets;
+@@ -749,7 +709,7 @@ bool getClosestLanelet(
+   // find by angle
+   {
+     double min_angle = std::numeric_limits<double>::max();
+-    double pose_yaw = tf2::getYaw(search_pose.orientation);
++    double pose_yaw = search_pose.w();
+     for (const auto & llt : candidate_lanelets) {
+       lanelet::ConstLineString3d segment = getClosestSegment(search_point, llt.centerline());
+       double angle_diff = M_PI;
+@@ -769,7 +729,7 @@ bool getClosestLanelet(
+ }
+ 
+ bool getClosestLaneletWithConstrains(
+-  const lanelet::ConstLanelets & lanelets, const geometry_msgs::msg::Pose & search_pose,
++  const lanelet::ConstLanelets & lanelets, const Eigen::Vector4d & search_pose,
+   lanelet::ConstLanelet * closest_lanelet_ptr, const double dist_threshold,
+   const double yaw_threshold)
+ {
+@@ -785,7 +745,7 @@ bool getClosestLaneletWithConstrains(
+     return found;
+   }
+ 
+-  lanelet::BasicPoint2d search_point(search_pose.position.x, search_pose.position.y);
++  lanelet::BasicPoint2d search_point(search_pose.x(), search_pose.y());  // x,y
+ 
+   // find by distance
+   std::vector<std::pair<lanelet::ConstLanelet, double>> candidate_lanelets;
+@@ -814,11 +774,11 @@ bool getClosestLaneletWithConstrains(
+   {
+     double min_angle = std::numeric_limits<double>::max();
+     double min_distance = std::numeric_limits<double>::max();
+-    double pose_yaw = tf2::getYaw(search_pose.orientation);
++    double pose_yaw = search_pose.w();
+     for (const auto & llt_pair : candidate_lanelets) {
+       const auto & distance = llt_pair.second;
+ 
+-      double lanelet_angle = getLaneletAngle(llt_pair.first, search_pose.position);
++      double lanelet_angle = lanelet::utils::getLaneletAngle(llt_pair.first, search_pose);
+       double angle_diff = std::abs(normalize_radian(lanelet_angle - pose_yaw));
+ 
+       if (angle_diff > std::abs(yaw_threshold)) continue;
+@@ -852,7 +812,7 @@ static lanelet::ConstLanelets getLaneletsWithinRange(
+ }
+ 
+ bool getCurrentLanelets(
+-  const lanelet::ConstLanelets & lanelets, const geometry_msgs::msg::Point & search_point,
++  const lanelet::ConstLanelets & lanelets, const Eigen::Vector3d & search_point,
+   lanelet::ConstLanelets * current_lanelets_ptr)
+ {
+   if (current_lanelets_ptr == nullptr) {
+@@ -865,7 +825,7 @@ bool getCurrentLanelets(
+     return false;
+   }
+ 
+-  lanelet::BasicPoint2d search_point_2d(search_point.x, search_point.y);
++  lanelet::BasicPoint2d search_point_2d(search_point.x(), search_point.y());  // x,y
+   for (const auto & llt : lanelets) {
+     if (lanelet::geometry::inside(llt, search_point_2d)) {
+       current_lanelets_ptr->push_back(llt);
+@@ -876,7 +836,7 @@ bool getCurrentLanelets(
+ }
+ 
+ bool getCurrentLanelets(
+-  const lanelet::ConstLanelets & lanelets, const geometry_msgs::msg::Pose & search_pose,
++  const lanelet::ConstLanelets & lanelets, const Eigen::Vector4d & search_pose,
+   lanelet::ConstLanelets * current_lanelets_ptr)
+ {
+   if (current_lanelets_ptr == nullptr) {
+@@ -889,7 +849,7 @@ bool getCurrentLanelets(
+     return false;
+   }
+ 
+-  lanelet::BasicPoint2d search_point(search_pose.position.x, search_pose.position.y);
++  lanelet::BasicPoint2d search_point(search_pose.x(), search_pose.y());  // x,y
+   for (const auto & llt : lanelets) {
+     if (lanelet::geometry::inside(llt, search_point)) {
+       current_lanelets_ptr->push_back(llt);
+@@ -900,11 +860,11 @@ bool getCurrentLanelets(
+ }
+ 
+ static lanelet::ConstLanelets getLaneletsWithinRange(
+-  const lanelet::ConstLanelets & lanelets, const geometry_msgs::msg::Point & search_point,
++  const lanelet::ConstLanelets & lanelets, const Eigen::Vector3d & search_point,
+   const double range)
+ {
+   return getLaneletsWithinRange(
+-    lanelets, lanelet::BasicPoint2d(search_point.x, search_point.y), range);
++    lanelets, lanelet::BasicPoint2d(search_point.x(), search_point.y()), range);
+ }
+ 
+ static lanelet::ConstLanelets getAllNeighborsRight(
+@@ -952,7 +912,7 @@ static lanelet::ConstLanelets getAllNeighbors(
+ 
+ static lanelet::ConstLanelets getAllNeighbors(
+   const lanelet::routing::RoutingGraphPtr & graph, const lanelet::ConstLanelets & road_lanelets,
+-  const geometry_msgs::msg::Point & search_point)
++  const Eigen::Vector3d & search_point)
+ {
+   const auto lanelets =
+     getLaneletsWithinRange(road_lanelets, search_point, std::numeric_limits<double>::epsilon());
+@@ -972,7 +932,7 @@ static lanelet::ConstLanelets getLaneChangeableNeighbors(
+ 
+ static lanelet::ConstLanelets getLaneChangeableNeighbors(
+   const lanelet::routing::RoutingGraphPtr & graph, const lanelet::ConstLanelets & road_lanelets,
+-  const geometry_msgs::msg::Point & search_point)
++  const Eigen::Vector3d & search_point)
+ {
+   const auto lanelets =
+     getLaneletsWithinRange(road_lanelets, search_point, std::numeric_limits<double>::epsilon());
+@@ -1114,116 +1074,70 @@ lanelet::Optional<lanelet::ConstPolygon3d> lineStringToPolygon(
+   return {};
+ }
+ 
++// Helper functions to convert byte arrays to Eigen vectors
++Eigen::Vector3d bytesToVector3d(const std::string & bytes)
++{
++  if (bytes.size() != sizeof(double) * 3) {
++    throw std::runtime_error("Invalid byte array size for Vector3d");
++  }
++  const double * data = reinterpret_cast<const double *>(bytes.data());
++  return Eigen::Vector3d(data[0], data[1], data[2]);
++}
++
++Eigen::Vector4d bytesToVector4d(const std::string & bytes)
++{
++  if (bytes.size() != sizeof(double) * 4) {
++    throw std::runtime_error("Invalid byte array size for Vector4d");
++  }
++  const double * data = reinterpret_cast<const double *>(bytes.data());
++  return Eigen::Vector4d(data[0], data[1], data[2], data[3]);
++}
++
+ lanelet::ArcCoordinates getArcCoordinates(
+   const lanelet::ConstLanelets & lanelet_sequence, const std::string & pose_byte)
+ {
+-  rclcpp::SerializedMessage serialized_msg;
+-  static constexpr size_t message_header_length = 8u;
+-  serialized_msg.reserve(message_header_length + pose_byte.size());
+-  serialized_msg.get_rcl_serialized_message().buffer_length = pose_byte.size();
+-  for (size_t i = 0; i < pose_byte.size(); ++i) {
+-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-    serialized_msg.get_rcl_serialized_message().buffer[i] = pose_byte[i];
+-    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-  }
+-  geometry_msgs::msg::Pose pose;
+-  static rclcpp::Serialization<geometry_msgs::msg::Pose> serializer;
+-  serializer.deserialize_message(&serialized_msg, &pose);
+-  return impl::getArcCoordinates(lanelet_sequence, pose);
++  const Eigen::Vector4d pose = bytesToVector4d(pose_byte);
++  return lanelet::utils::getArcCoordinates(lanelet_sequence, pose);
+ }
+ 
+ double getLaneletAngle(const lanelet::ConstLanelet & lanelet, const std::string & point_byte)
+ {
+-  rclcpp::SerializedMessage serialized_msg;
+-  static constexpr size_t message_header_length = 8u;
+-  serialized_msg.reserve(message_header_length + point_byte.size());
+-  serialized_msg.get_rcl_serialized_message().buffer_length = point_byte.size();
+-  for (size_t i = 0; i < point_byte.size(); ++i) {
+-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-    serialized_msg.get_rcl_serialized_message().buffer[i] = point_byte[i];
+-    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-  }
+-  geometry_msgs::msg::Point point;
+-  static rclcpp::Serialization<geometry_msgs::msg::Point> serializer;
+-  serializer.deserialize_message(&serialized_msg, &point);
+-  return ::impl::getLaneletAngle(lanelet, point);
++  const Eigen::Vector3d point = bytesToVector3d(point_byte);
++  Eigen::Vector4d extented_point;
++  extented_point.x() = point.x();
++  extented_point.y() = point.y();
++  extented_point.z() = point.z();
++  return lanelet::utils::getLaneletAngle(lanelet, extented_point);
+ }
+ 
++
+ bool isInLanelet(
+   const std::string & pose_byte, const lanelet::ConstLanelet & lanelet, const double radius = 0.0)
+ {
+-  rclcpp::SerializedMessage serialized_msg;
+-  static constexpr size_t message_header_length = 8u;
+-  serialized_msg.reserve(message_header_length + pose_byte.size());
+-  serialized_msg.get_rcl_serialized_message().buffer_length = pose_byte.size();
+-  for (size_t i = 0; i < pose_byte.size(); ++i) {
+-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-    serialized_msg.get_rcl_serialized_message().buffer[i] = pose_byte[i];
+-    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-  }
+-  geometry_msgs::msg::Pose pose;
+-  static rclcpp::Serialization<geometry_msgs::msg::Pose> serializer;
+-  serializer.deserialize_message(&serialized_msg, &pose);
+-  return impl::isInLanelet(pose, lanelet, radius);
++  const Eigen::Vector4d pose = bytesToVector4d(pose_byte);
++  return lanelet::utils::isInLanelet(pose, lanelet, radius);
+ }
+ 
+ std::vector<double> getClosestCenterPose(
+   const lanelet::ConstLanelet & lanelet, const std::string & search_point_byte)
+ {
+-  rclcpp::SerializedMessage serialized_point_msg;
+-  static constexpr size_t message_header_length = 8u;
+-  serialized_point_msg.reserve(message_header_length + search_point_byte.size());
+-  serialized_point_msg.get_rcl_serialized_message().buffer_length = search_point_byte.size();
+-  for (size_t i = 0; i < search_point_byte.size(); ++i) {
+-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-    serialized_point_msg.get_rcl_serialized_message().buffer[i] = search_point_byte[i];
+-    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-  }
+-  geometry_msgs::msg::Point search_point;
+-  static rclcpp::Serialization<geometry_msgs::msg::Point> serializer_point;
+-  serializer_point.deserialize_message(&serialized_point_msg, &search_point);
+-  const geometry_msgs::msg::Pose pose = impl::getClosestCenterPose(lanelet, search_point);
+-  // NOTE: it was difficult to return the deserialized pose_byte and serialize the pose_byte on
+-  // python-side. So this function returns [*position, *quaternion] as double array
+-  const auto & xyz = pose.position;
+-  const auto & quat = pose.orientation;
+-  return std::vector<double>({xyz.x, xyz.y, xyz.z, quat.x, quat.y, quat.z, quat.w});
++  const Eigen::Vector3d search_point = bytesToVector3d(search_point_byte);
++  const Eigen::Vector4d pose = lanelet::utils::getClosestCenterPose(lanelet, search_point);
++  return std::vector<double>{pose[0], pose[1], pose[2], pose[3]};
+ }
+ 
+ double getLateralDistanceToCenterline(
+   const lanelet::ConstLanelet & lanelet, const std::string & pose_byte)
+ {
+-  rclcpp::SerializedMessage serialized_msg;
+-  static constexpr size_t message_header_length = 8u;
+-  serialized_msg.reserve(message_header_length + pose_byte.size());
+-  serialized_msg.get_rcl_serialized_message().buffer_length = pose_byte.size();
+-  for (size_t i = 0; i < pose_byte.size(); ++i) {
+-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-    serialized_msg.get_rcl_serialized_message().buffer[i] = pose_byte[i];
+-    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-  }
+-  geometry_msgs::msg::Pose pose;
+-  static rclcpp::Serialization<geometry_msgs::msg::Pose> serializer;
+-  serializer.deserialize_message(&serialized_msg, &pose);
+-  return impl::getLateralDistanceToCenterline(lanelet, pose);
++  const Eigen::Vector4d pose = bytesToVector4d(pose_byte);
++  return lanelet::utils::getLateralDistanceToCenterline(lanelet, pose);
+ }
+ 
+ double getLateralDistanceToClosestLanelet(
+   const lanelet::ConstLanelets & lanelet_sequence, const std::string & pose_byte)
+ {
+-  rclcpp::SerializedMessage serialized_msg;
+-  static constexpr size_t message_header_length = 8u;
+-  serialized_msg.reserve(message_header_length + pose_byte.size());
+-  serialized_msg.get_rcl_serialized_message().buffer_length = pose_byte.size();
+-  for (size_t i = 0; i < pose_byte.size(); ++i) {
+-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-    serialized_msg.get_rcl_serialized_message().buffer[i] = pose_byte[i];
+-    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-  }
+-  geometry_msgs::msg::Pose pose;
+-  static rclcpp::Serialization<geometry_msgs::msg::Pose> serializer;
+-  serializer.deserialize_message(&serialized_msg, &pose);
+-  return impl::getLateralDistanceToClosestLanelet(lanelet_sequence, pose);
++  const Eigen::Vector4d pose = bytesToVector4d(pose_byte);
++  return lanelet::utils::getLateralDistanceToClosestLanelet(lanelet_sequence, pose);
+ }
+ 
+ /*
+@@ -1296,76 +1210,32 @@ lanelet::Optional<lanelet::ConstPolygon3d> getLinkedParkingLot(
+ lanelet::ConstLanelets getLaneletsWithinRange_point(
+   const lanelet::ConstLanelets & lanelets, const std::string & point_byte, const double range)
+ {
+-  rclcpp::SerializedMessage serialized_msg;
+-  static constexpr size_t message_header_length = 8u;
+-  serialized_msg.reserve(message_header_length + point_byte.size());
+-  serialized_msg.get_rcl_serialized_message().buffer_length = point_byte.size();
+-  for (size_t i = 0; i < point_byte.size(); ++i) {
+-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-    serialized_msg.get_rcl_serialized_message().buffer[i] = point_byte[i];
+-    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-  }
+-  geometry_msgs::msg::Point point;
+-  static rclcpp::Serialization<geometry_msgs::msg::Point> serializer;
+-  serializer.deserialize_message(&serialized_msg, &point);
+-  return impl::getLaneletsWithinRange(lanelets, point, range);
++  const Eigen::Vector3d point = bytesToVector3d(point_byte);
++  return lanelet::utils::query::getLaneletsWithinRange(lanelets, point, range);
+ }
+ 
+ lanelet::ConstLanelets getLaneChangeableNeighbors_point(
+   const lanelet::routing::RoutingGraphPtr & graph, const lanelet::ConstLanelets & road_lanelets,
+   const std::string & point_byte)
+ {
+-  rclcpp::SerializedMessage serialized_msg;
+-  static constexpr size_t message_header_length = 8u;
+-  serialized_msg.reserve(message_header_length + point_byte.size());
+-  serialized_msg.get_rcl_serialized_message().buffer_length = point_byte.size();
+-  for (size_t i = 0; i < point_byte.size(); ++i) {
+-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-    serialized_msg.get_rcl_serialized_message().buffer[i] = point_byte[i];
+-    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-  }
+-  geometry_msgs::msg::Point point;
+-  static rclcpp::Serialization<geometry_msgs::msg::Point> serializer;
+-  serializer.deserialize_message(&serialized_msg, &point);
+-  return impl::getLaneChangeableNeighbors(graph, road_lanelets, point);
++  const Eigen::Vector3d point = bytesToVector3d(point_byte);
++  return lanelet::utils::query::getLaneChangeableNeighbors(graph, road_lanelets, point);
+ }
+ 
+ lanelet::ConstLanelets getAllNeighbors_point(
+   const lanelet::routing::RoutingGraphPtr & graph, const lanelet::ConstLanelets & road_lanelets,
+   const std::string & point_byte)
+ {
+-  rclcpp::SerializedMessage serialized_msg;
+-  static constexpr size_t message_header_length = 8u;
+-  serialized_msg.reserve(message_header_length + point_byte.size());
+-  serialized_msg.get_rcl_serialized_message().buffer_length = point_byte.size();
+-  for (size_t i = 0; i < point_byte.size(); ++i) {
+-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-    serialized_msg.get_rcl_serialized_message().buffer[i] = point_byte[i];
+-    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-  }
+-  geometry_msgs::msg::Point point;
+-  static rclcpp::Serialization<geometry_msgs::msg::Point> serializer;
+-  serializer.deserialize_message(&serialized_msg, &point);
+-  return impl::getAllNeighbors(graph, road_lanelets, point);
++  const Eigen::Vector3d point = bytesToVector3d(point_byte);
++  return lanelet::utils::query::getAllNeighbors(graph, road_lanelets, point);
+ }
+ 
+ lanelet::Optional<lanelet::ConstLanelet> getClosestLanelet(
+   const lanelet::ConstLanelets & lanelets, const std::string & pose_byte)
+ {
+-  rclcpp::SerializedMessage serialized_msg;
+-  static constexpr size_t message_header_length = 8u;
+-  serialized_msg.reserve(message_header_length + pose_byte.size());
+-  serialized_msg.get_rcl_serialized_message().buffer_length = pose_byte.size();
+-  for (size_t i = 0; i < pose_byte.size(); ++i) {
+-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-    serialized_msg.get_rcl_serialized_message().buffer[i] = pose_byte[i];
+-    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-  }
+-  geometry_msgs::msg::Pose pose;
+-  static rclcpp::Serialization<geometry_msgs::msg::Pose> serializer;
+-  serializer.deserialize_message(&serialized_msg, &pose);
++  const Eigen::Vector4d pose = bytesToVector4d(pose_byte);
+   lanelet::ConstLanelet closest_lanelet{};
+-  if (impl::getClosestLanelet(lanelets, pose, &closest_lanelet)) {
++  if (lanelet::utils::query::getClosestLanelet(lanelets, pose, &closest_lanelet)) {
+     return closest_lanelet;
+   }
+   return {};
+@@ -1376,20 +1246,9 @@ lanelet::Optional<lanelet::ConstLanelet> getClosestLaneletWithConstrains(
+   const double dist_threshold = std::numeric_limits<double>::max(),
+   const double yaw_threshold = std::numeric_limits<double>::max())
+ {
+-  rclcpp::SerializedMessage serialized_msg;
+-  static constexpr size_t message_header_length = 8u;
+-  serialized_msg.reserve(message_header_length + pose_byte.size());
+-  serialized_msg.get_rcl_serialized_message().buffer_length = pose_byte.size();
+-  for (size_t i = 0; i < pose_byte.size(); ++i) {
+-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-    serialized_msg.get_rcl_serialized_message().buffer[i] = pose_byte[i];
+-    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-  }
+-  geometry_msgs::msg::Pose pose;
+-  static rclcpp::Serialization<geometry_msgs::msg::Pose> serializer;
+-  serializer.deserialize_message(&serialized_msg, &pose);
++  const Eigen::Vector4d pose = bytesToVector4d(pose_byte);
+   lanelet::ConstLanelet closest_lanelet{};
+-  if (impl::getClosestLaneletWithConstrains(
++  if (lanelet::utils::query::getClosestLaneletWithConstrains(
+         lanelets, pose, &closest_lanelet, dist_threshold, yaw_threshold)) {
+     return closest_lanelet;
+   }
+@@ -1399,40 +1258,18 @@ lanelet::Optional<lanelet::ConstLanelet> getClosestLaneletWithConstrains(
+ lanelet::ConstLanelets getCurrentLanelets_point(
+   const lanelet::ConstLanelets & lanelets, const std::string & point_byte)
+ {
+-  rclcpp::SerializedMessage serialized_msg;
+-  static constexpr size_t message_header_length = 8u;
+-  serialized_msg.reserve(message_header_length + point_byte.size());
+-  serialized_msg.get_rcl_serialized_message().buffer_length = point_byte.size();
+-  for (size_t i = 0; i < point_byte.size(); ++i) {
+-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-    serialized_msg.get_rcl_serialized_message().buffer[i] = point_byte[i];
+-    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-  }
+-  geometry_msgs::msg::Point point;
+-  static rclcpp::Serialization<geometry_msgs::msg::Point> serializer;
+-  serializer.deserialize_message(&serialized_msg, &point);
++  const Eigen::Vector3d point = bytesToVector3d(point_byte);
+   lanelet::ConstLanelets current_lanelets{};
+-  impl::getCurrentLanelets(lanelets, point, &current_lanelets);
++  lanelet::utils::query::getCurrentLanelets(lanelets, point, &current_lanelets);
+   return current_lanelets;
+ }
+ 
+ lanelet::ConstLanelets getCurrentLanelets_pose(
+   const lanelet::ConstLanelets & lanelets, const std::string & pose_byte)
+ {
+-  rclcpp::SerializedMessage serialized_msg;
+-  static constexpr size_t message_header_length = 8u;
+-  serialized_msg.reserve(message_header_length + pose_byte.size());
+-  serialized_msg.get_rcl_serialized_message().buffer_length = pose_byte.size();
+-  for (size_t i = 0; i < pose_byte.size(); ++i) {
+-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-    serialized_msg.get_rcl_serialized_message().buffer[i] = pose_byte[i];
+-    // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+-  }
+-  geometry_msgs::msg::Pose pose;
+-  static rclcpp::Serialization<geometry_msgs::msg::Pose> serializer;
+-  serializer.deserialize_message(&serialized_msg, &pose);
++  const Eigen::Vector4d pose = bytesToVector4d(pose_byte);
+   lanelet::ConstLanelets current_lanelets{};
+-  impl::getCurrentLanelets(lanelets, pose, &current_lanelets);
++  lanelet::utils::query::getCurrentLanelets(lanelets, pose, &current_lanelets);
+   return current_lanelets;
+ }
+ 
