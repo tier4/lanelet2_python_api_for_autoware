@@ -53,7 +53,8 @@ def get_lanelet2_projector(projector_info):
             projector_info.map_origin.altitude
         )
         origin = lanelet2.io.Origin(position)
-        return TransverseMercatorProjector(origin)
+        scale_factor = getattr(projector_info, "scale_factor", 0.9996)
+        return TransverseMercatorProjector(origin, scale_factor=scale_factor)
     
     # LOCAL_CARTESIAN の場合
     elif projector_info.projector_type == "LOCAL_CARTESIAN":
