@@ -30,7 +30,7 @@ def get_lanelet2_projector(projector_info):
     """
     # LOCAL_CARTESIAN_UTM の場合
     if projector_info.projector_type == "LOCAL_CARTESIAN_UTM":
-        position = lanelet2.GPSPoint(
+        position = lanelet2.core.GPSPoint(
             projector_info.map_origin.latitude,
             projector_info.map_origin.longitude,
             projector_info.map_origin.altitude
@@ -63,7 +63,7 @@ def get_lanelet2_projector(projector_info):
             projector_info.map_origin.longitude,
             projector_info.map_origin.altitude
         )
-        origin = lanelet2.ioOrigin(position)
+        origin = lanelet2.io.Origin(position)
         return lanelet2.projection.LocalCartesianProjector(origin)
     
     # サポートされていないプロジェクタタイプの場合
