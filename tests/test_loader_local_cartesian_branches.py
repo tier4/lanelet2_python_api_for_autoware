@@ -1,19 +1,11 @@
-"""loader.get_lanelet2_projector() の LOCAL_CARTESIAN_UTM / LOCAL_CARTESIAN 分岐のテスト。
+"""Tests for the LOCAL_CARTESIAN_UTM / LOCAL_CARTESIAN branches of
+loader.get_lanelet2_projector().
 
-これまで一度もテストで実行されたことがなく、実際に呼ばれると
-`lanelet2.GPSPoint` / `lanelet2.ioOrigin` という誤ったシンボル参照により
-AttributeError で落ちていた（Issue #9）。
+Requires the built C++ extension; skipped automatically when unavailable.
 
-このファイルのテストはビルド済みの C++ 拡張が必要（未ビルド環境では skip される）。
-
-既知の制限（Issue #9 のスコープ外、Issue #10 で追跡）:
-LOCAL_CARTESIAN 分岐が呼び出す `lanelet2.projection.LocalCartesianProjector` は
-このリポジトリ（vendored lanelet2 / autoware_lanelet2_extension のいずれにも）
-実装されていない。Issue #9 の symbol-path 修正（`lanelet2.io.Origin` へのタイポ修正）
-だけではこの分岐は解決しないため、このファイルでは「LOCAL_CARTESIAN_UTM は成功する」
-「LOCAL_CARTESIAN は LocalCartesianProjector 未実装により AttributeError で失敗する
-（既知の制限）」ことをそれぞれ明示的に検証する。
-https://github.com/tier4/lanelet2_python_api_for_autoware/issues/10
+lanelet2.projection.LocalCartesianProjector is not implemented anywhere in
+this repo's vendored lanelet2 / autoware_lanelet2_extension (#10), so the
+LOCAL_CARTESIAN branch is expected to fail with AttributeError.
 """
 import pytest
 
@@ -41,13 +33,13 @@ def test_local_cartesian_utm_returns_utm_projector():
 
 
 def test_local_cartesian_raises_attribute_error_for_unimplemented_projector():
-    """LOCAL_CARTESIAN は LocalCartesianProjector 未実装のため AttributeError で落ちる（issue #10）。"""
+    """lanelet2.projection.LocalCartesianProjector is not implemented (#10)."""
     with pytest.raises(AttributeError):
         loader.get_lanelet2_projector(make_info("LOCAL_CARTESIAN"))
 
 
 # ---------------------------------------------------------------------------
-# loader.load_map() 経由のエンドツーエンド
+# End-to-end via loader.load_map()
 # ---------------------------------------------------------------------------
 
 MINIMAL_OSM = (
@@ -70,6 +62,6 @@ def test_load_map_accepts_local_cartesian_utm(osm_path):
 
 
 def test_load_map_local_cartesian_raises_attribute_error(osm_path):
-    """LOCAL_CARTESIAN 経由の load_map も LocalCartesianProjector 未実装により失敗する（issue #10）。"""
+    """load_map's LOCAL_CARTESIAN path fails for the same reason (#10)."""
     with pytest.raises(AttributeError):
         loader.load_map(osm_path, make_info("LOCAL_CARTESIAN"))
