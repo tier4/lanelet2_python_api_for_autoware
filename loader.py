@@ -45,14 +45,16 @@ def get_lanelet2_projector(projector_info):
         return projector
     
     # TRANSVERSE_MERCATOR の場合
-    elif projector_info.projector_type == "TRANSVERSE_MERCATOR":
+    # MapProjectorInfo の値は "TransverseMercator"（旧来の "TRANSVERSE_MERCATOR" も受け付ける）
+    elif projector_info.projector_type in ("TransverseMercator", "TRANSVERSE_MERCATOR"):
         position = lanelet2.core.GPSPoint(
             projector_info.map_origin.latitude,
             projector_info.map_origin.longitude,
             projector_info.map_origin.altitude
         )
-        origin = lanelet2.Origin(position)
-        return TransverseMercatorProjector(origin)
+        origin = lanelet2.io.Origin(position)
+        scale_factor = getattr(projector_info, "scale_factor", 0.9996)
+        return TransverseMercatorProjector(origin, scale_factor=scale_factor)
     
     # LOCAL_CARTESIAN の場合
     elif projector_info.projector_type == "LOCAL_CARTESIAN":

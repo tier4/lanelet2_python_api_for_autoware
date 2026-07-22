@@ -22,6 +22,9 @@ string mgrs_grid
 # altitude may not be in ellipsoid height
 geographic_msgs/GeoPoint map_origin
 
+# Scale factor, used for the TransverseMercator projection
+float64 scale_factor
+
 -----
 https://docs.ros.org/en/melodic/api/geographic_msgs/html/msg/GeoPoint.html
 # Geographic point, using the WGS 84 reference ellipsoid.
@@ -78,13 +81,16 @@ class MapProjectorInfo:
     # Used for some map projection types
     # altitude may not be in ellipsoid height
     geographic_msgs/GeoPoint map_origin
+    # Scale factor, used for the TransverseMercator projection
+    float64 scale_factor
     """
-    def __init__(self, projector_type:str, vertical_datum:str, mgrs_grid:str, map_origin:GeoPoint=GeoPoint(0, 0, 0)):
+    def __init__(self, projector_type:str, vertical_datum:str, mgrs_grid:str, map_origin:GeoPoint=GeoPoint(0, 0, 0), scale_factor:float=0.9996):
         assert projector_type in ["LOCAL", "LOCAL_CARTESIAN_UTM", "MGRS", "TransverseMercator"]
         self.projector_type = projector_type
         self.vertical_datum = vertical_datum
         self.mgrs_grid = mgrs_grid
         self.map_origin = map_origin
+        self.scale_factor = scale_factor
 
 def load_info_from_yaml(yaml_path:str):
     with open(yaml_path, "r") as f:
@@ -98,4 +104,7 @@ def load_info_from_yaml(yaml_path:str):
         map_origin = GeoPoint(map_origin["latitude"], map_origin["longitude"], map_origin["altitude"])
     else:
         map_origin = GeoPoint(0, 0, 0)
-    return MapProjectorInfo(yaml_dict["projector_type"], vertical_datum, mgrs_grid, map_origin)
+    scale_factor = yaml_dict.get("scale_factor", 0.9996)
+    if scale_factor is None:
+        scale_factor = 0.9996
+    return MapProjectorInfo(yaml_dict["projector_type"], vertical_datum, mgrs_grid, map_origin, scale_factor)
