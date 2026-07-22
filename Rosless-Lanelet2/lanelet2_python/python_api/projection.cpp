@@ -1,3 +1,4 @@
+#include <lanelet2_projection/LocalCartesian.h>
 #include <lanelet2_projection/UTM.h>
 
 #include <boost/python.hpp>
@@ -16,4 +17,6 @@ BOOST_PYTHON_MODULE(PYTHON_API_MODULE_NAME) {  // NOLINT
   class_<projection::UtmProjector, std::shared_ptr<projection::UtmProjector>, bases<Projector>>("UtmProjector",
                                                                                                 init<Origin>("origin"))
       .def(init<Origin, bool, bool>("UtmProjector(origin, useOffset, throwInPaddingArea)"));
+  class_<projection::LocalCartesianProjector, std::shared_ptr<projection::LocalCartesianProjector>,  // NOLINT
+         bases<Projector>>("LocalCartesianProjector", init<Origin>("origin"));
 }

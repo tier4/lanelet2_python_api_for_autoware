@@ -3,7 +3,8 @@ project(liblanelet2_projection VERSION 0.1 LANGUAGES CXX)
 
 add_library(lanelet2_projection SHARED
 	src/UTM.cpp
-        src/CPM.cpp)
+        src/CPM.cpp
+        src/LocalCartesian.cpp)
 
 # Define headers for this library. PUBLIC headers are used for
 # compiling the library, and will be added to consumers' build
